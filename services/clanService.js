@@ -47,7 +47,44 @@ function splitClanResponse(clan) {
     };
 }
 
-//just clan metadata
+function rankMembers(members, rankBy = "league") {
+    const sortedMembers = [...members];
+
+    if (rankBy === "donos") {
+        sortedMembers.sort((a, b) => {
+            return (b.donations || 0) - (a.donations || 0);
+        });
+    } else {
+        sortedMembers.sort((a, b) => {
+            return (a.clanRank || 999) - (b.clanRank || 999);
+        });
+    }
+
+    return sortedMembers.map((member, index) => ({
+        ...member,
+        displayRank: index + 1
+    }));
+}
+
+//single clan metadata
+async function getClanByKey(clanKey, rankBy = "league") {
+    const clanConfig = clans.find(clan => clan.key === clanKey);
+
+    if (!clanConfig) {
+        return null;
+    }
+
+    const clan = await getClanInfo(clanConfig.tag);
+    const { clanInfo, members } = splitClanResponse(clan);
+
+    return {
+        ...clanConfig,
+        clanInfo,
+        members: rankMembers(members, rankBy)
+    };
+}
+
+//just clans metadata
 async function getAllClanInfo() {
     const results = await Promise.all(
         clans.map(async clanConfig => {
@@ -81,7 +118,7 @@ async function getAllClanMembers() {
     return results;
 }
 
-//full json of clan metadata + members
+//full json of clans metadata + members
 async function getAllClansWithMembers() {
     const results = await Promise.all(
         clans.map(async clanConfig => {
@@ -102,5 +139,6 @@ async function getAllClansWithMembers() {
 module.exports = {
     getAllClanInfo,
     getAllClanMembers,
-    getAllClansWithMembers
+    getAllClansWithMembers,
+    getClanByKey
 };

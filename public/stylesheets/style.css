@@ -126,3 +126,10 @@ body {
 .site-footer {
   margin-top: auto;
 }
+
+.member-league-icon {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  flex-shrink: 0;
+}

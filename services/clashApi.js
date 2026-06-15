@@ -30,6 +30,22 @@ async function getClanInfo(clanTag) {
     return response.data;
 }
 
+//GET war log
+async function getClanWarLog(clanTag, limit = 10) {
+    const response = await axios.get(
+        `${BASE_URL}/clans/${encodeTag(clanTag)}/warlog`,
+        {
+            headers: getHeaders(),
+            params: {
+                limit
+            }
+        }
+    );
+
+    return response.data;
+}
+
 module.exports = {
     getClanInfo,
+    getClanWarLog
 };
