@@ -1,8 +1,128 @@
-body {
-  padding: 50px;
-  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+:root {
+  --fw-bg: #07070c;
+  --fw-card: #11111a;
+  --fw-card-soft: #181827;
+  --fw-teal: #20e6c3;
+  --fw-purple: #7b3cff;
+  --fw-purple-soft: #a084ff;
+  --fw-white: #ffffff;
+  --fw-muted: #a9a9b8;
 }
 
-a {
-  color: #00B7FF;
+html,
+body {
+    min-height: 100%;
+}
+
+main {
+  flex: 1;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(circle at top left, rgba(123, 60, 255, 0.22), transparent 35%),
+    radial-gradient(circle at top right, rgba(32, 230, 195, 0.18), transparent 30%),
+    var(--fw-bg);
+  color: var(--fw-white);
+}
+
+.page-title {
+  color: var(--fw-white);
+}
+
+.text-muted {
+  color: var(--fw-muted) !important;
+}
+
+.fw-logo {
+  max-height: 90px;
+}
+
+.clan-card {
+  background: linear-gradient(145deg, var(--fw-card), var(--fw-card-soft));
+  border: 1px solid rgba(32, 230, 195, 0.25);
+  border-radius: 1.25rem;
+  color: var(--fw-white);
+  box-shadow:
+    0 0 20px rgba(32, 230, 195, 0.08),
+    0 0 40px rgba(123, 60, 255, 0.08);
+}
+
+.clan-card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 0 24px rgba(32, 230, 195, 0.18),
+    0 0 48px rgba(123, 60, 255, 0.16);
+  transition: all 0.2s ease;
+}
+
+.clan-badge {
+  width: 70px;
+  height: 70px;
+}
+
+.stat-box {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.9rem;
+  padding: 0.75rem;
+}
+
+.stat-value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--fw-teal);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--fw-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.clan-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.clan-meta-row:last-child {
+  border-bottom: none;
+}
+
+.clan-meta-label {
+  color: var(--fw-muted);
+}
+
+.clan-meta-value {
+  font-weight: 700;
+  color: var(--fw-white);
+}
+
+.btn-fw-primary {
+  background: linear-gradient(135deg, var(--fw-teal), var(--fw-purple));
+  border: none;
+  color: var(--fw-white);
+  font-weight: 700;
+}
+
+.btn-fw-primary:hover {
+  color: var(--fw-white);
+  opacity: 0.9;
+}
+
+.fw-navbar {
+  background: rgba(7, 7, 12, 0.92);
+  border-bottom: 1px solid rgba(32, 230, 195, 0.25);
+  box-shadow: 0 0 20px rgba(123, 60, 255, 0.12);
+}
+
+.site-footer {
+  margin-top: auto;
 }

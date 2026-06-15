@@ -1,0 +1,1 @@
+//routes/scoreboard.js

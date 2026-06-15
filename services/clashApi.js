@@ -1,0 +1,35 @@
+//services/clashApi.js
+const axios = require("axios");
+
+const BASE_URL = "https://api.clashofclans.com/v1";
+
+//helpers
+function normalizeTag(tag) {
+    return tag.startsWith("#") ? tag : `#${tag}`;
+}
+
+function encodeTag(tag) {
+    return encodeURIComponent(normalizeTag(tag));
+}
+
+function getHeaders() {
+    return {
+        Authorization: `Bearer ${process.env.CLASH_API_KEY}`
+    };
+}
+
+//GET clan metadata
+async function getClanInfo(clanTag) {
+    const response = await axios.get(
+        `${BASE_URL}/clans/${encodeTag(clanTag)}`,
+        {
+            headers: getHeaders()
+        }
+    );
+
+    return response.data;
+}
+
+module.exports = {
+    getClanInfo,
+};

@@ -1,0 +1,130 @@
+<%- include("partials/header", { title }) %>
+<%- include("partials/navbar") %>
+
+<main class="container py-4">
+
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <img src="/images/fw-logo.png" alt="Filthy Witches Logo" class="fw-logo">
+
+    <div>
+      <h1 class="page-title mb-1">Clan Overview</h1>
+      <p class="text-muted mb-0">
+        Live metadata for the Filthy Witches clan family.
+      </p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <% clans.forEach(clan => { %>
+    <% const info = clan.clanInfo; %>
+
+    <div class="col-12 col-md-6 col-xl-4">
+
+      <div class="card clan-card h-100">
+
+        <div class="card-body">
+
+          <div class="d-flex align-items-center mb-4">
+
+            <img src="<%= info.badgeUrls?.medium %>" alt="<%= info.name %>" class="me-3 clan-badge">
+
+            <div>
+              <h4 class="mb-0"><%= info.name %></h4>
+              <div class="text-muted small">
+                <%= info.tag %>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="row text-center mb-4">
+
+            <div class="col">
+              <div class="stat-value">
+                <%= info.clanLevel %>
+              </div>
+              <div class="stat-label">
+                Level
+              </div>
+            </div>
+
+            <div class="col">
+              <div class="stat-value">
+                <%= info.members %>
+              </div>
+              <div class="stat-label">
+                Members
+              </div>
+            </div>
+
+            <div class="col">
+              <div class="stat-value">
+                <%= info.clanPoints !== undefined
+    ? info.clanPoints.toLocaleString()
+    : "N/A"
+%>
+              </div>
+              <div class="stat-label">
+                Trophies
+              </div>
+            </div>
+
+          </div>
+
+          <div class="clan-meta-row">
+            <span class="clan-meta-label">CWL League</span>
+            <span class="clan-meta-value">
+              <%= info.warLeague?.name || "N/A" %>
+            </span>
+          </div>
+
+          <div class="clan-meta-row">
+            <span class="clan-meta-label">War Frequency</span>
+            <span class="clan-meta-value">
+              <%= info.warFrequency %>
+            </span>
+          </div>
+
+          <div class="clan-meta-row">
+            <span class="clan-meta-label">Win Streak</span>
+            <span class="clan-meta-value">
+              <%= info.warWinStreak %>
+            </span>
+          </div>
+
+          <div class="clan-meta-row">
+            <span class="clan-meta-label">War Record</span>
+            <span class="clan-meta-value">
+              <%= info.warWins %>W /
+              <%= info.warLosses %>L /
+              <%= info.warTies %>T
+            </span>
+          </div>
+
+          <div class="clan-meta-row">
+            <span class="clan-meta-label">Win Percentage</span>
+            <span class="clan-meta-value">
+              <%= info.winPercentage %>%
+            </span>
+          </div>
+
+        </div>
+
+        <div class="card-footer bg-transparent border-0">
+          <a href="/clans/<%= clan.key %>" class="btn btn-fw-primary w-100">
+            View Clan Details
+          </a>
+        </div>
+
+      </div>
+
+    </div>
+
+    <% }) %>
+
+  </div>
+
+</main>
+
+<%- include("partials/footer") %>
