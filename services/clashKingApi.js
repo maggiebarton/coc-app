@@ -29,6 +29,20 @@ async function getPreviousWars(clanTag, limit = 50, timestampStart = 0, timestam
     return response.data;
 }
 
-module.exports = {
-    getPreviousWars
-};
+async function getCwl(clanTag, season) {
+    const response = await axios.get(
+      `${BASE_URL}/cwl/${encodeTag(clanTag)}/${season}`,
+      {
+        headers: {
+          accept: "application/json"
+        }
+      }
+    );
+  
+    return response.data;
+  }
+  
+  module.exports = {
+    getPreviousWars,
+    getCwl
+  };
