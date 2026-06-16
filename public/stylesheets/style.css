@@ -133,3 +133,7 @@ body {
   object-fit: contain;
   flex-shrink: 0;
 }
+
+.scoreboard-select {
+  min-width: 220px;
+}
