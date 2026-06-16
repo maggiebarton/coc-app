@@ -1,23 +1,25 @@
-<%- include("partials/header", { title }) %>
-<%- include("partials/navbar") %>
+<%- include("partials/header", { title }) %> <%- include("partials/navbar") %>
 
 <main class="container py-4">
-
   <% const info = clan.clanInfo; %>
 
   <div class="d-flex align-items-center gap-3 mb-4">
-    <img src="<%= info.badgeUrls?.medium %>" alt="<%= info.name %> badge" class="clan-badge">
+    <img
+      src="<%= info.badgeUrls?.medium %>"
+      alt="<%= info.name %> badge"
+      class="clan-badge"
+    />
 
     <div>
       <h1 class="page-title mb-1"><%= info.name %></h1>
       <p class="text-muted mb-0">
-        <%= info.tag %> • Level <%= info.clanLevel %> • <%= info.warLeague?.name || "No CWL League" %>
+        <%= info.tag %> • Level <%= info.clanLevel %> • <%= info.warLeague?.name
+        || "No CWL League" %>
       </p>
     </div>
   </div>
 
   <div class="row g-4 mb-4">
-
     <div class="col-6 col-md-3">
       <div class="stat-box text-center">
         <div class="stat-value"><%= info.members %></div>
@@ -45,11 +47,9 @@
         <div class="stat-label">Win Rate</div>
       </div>
     </div>
-
   </div>
 
   <div class="row g-4">
-
     <div class="col-12 col-lg-4">
       <div class="card clan-card h-100">
         <div class="card-body">
@@ -67,12 +67,16 @@
 
           <div class="clan-meta-row">
             <span class="clan-meta-label">War Log Public</span>
-            <span class="clan-meta-value"><%= info.isWarLogPublic ? "Yes" : "No" %></span>
+            <span class="clan-meta-value"
+              ><%= info.isWarLogPublic ? "Yes" : "No" %></span
+            >
           </div>
 
           <div class="clan-meta-row">
             <span class="clan-meta-label">Family Friendly</span>
-            <span class="clan-meta-value"><%= info.isFamilyFriendly ? "Yes" : "No" %></span>
+            <span class="clan-meta-value"
+              ><%= info.isFamilyFriendly ? "Yes" : "No" %></span
+            >
           </div>
 
           <div class="clan-meta-row">
@@ -85,10 +89,10 @@
           <div class="clan-meta-row">
             <span class="clan-meta-label">War Record</span>
             <span class="clan-meta-value">
-              <%= info.warWins %>W / <%= info.warLosses %>L / <%= info.warTies %>T
+              <%= info.warWins %>W / <%= info.warLosses %>L / <%= info.warTies
+              %>T
             </span>
           </div>
-
         </div>
       </div>
     </div>
@@ -96,24 +100,38 @@
     <div class="col-12 col-lg-8">
       <div class="card clan-card h-100">
         <div class="card-body">
-
           <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
               <h4 class="mb-0">Members</h4>
-              <span class="text-muted small"><%= clan.members.length %> players</span>
+              <span class="text-muted small"
+                ><%= clan.members.length %> players</span
+              >
             </div>
 
-            <div class="btn-group btn-group-sm" role="group" aria-label="Rank members by">
+            <div
+              class="btn-group btn-group-sm"
+              role="group"
+              aria-label="Rank members by"
+            >
               <a
                 href="/clans/<%= clan.key %>?rankBy=league"
-                class="btn <%= rankBy === 'league' ? 'btn-fw-primary' : 'btn-outline-light' %>">
+                class="btn <%= rankBy === 'league' ? 'btn-fw-primary' : 'btn-outline-light' %>"
+              >
                 League Rank
               </a>
 
               <a
                 href="/clans/<%= clan.key %>?rankBy=donos"
-                class="btn <%= rankBy === 'donos' ? 'btn-fw-primary' : 'btn-outline-light' %>">
+                class="btn <%= rankBy === 'donos' ? 'btn-fw-primary' : 'btn-outline-light' %>"
+              >
                 Donos Rank
+              </a>
+
+              <a
+                href="/clans/<%= clan.key %>?rankBy=avgStars"
+                class="btn <%= rankBy === 'avgStars' ? 'btn-fw-primary' : 'btn-outline-light' %>"
+              >
+                Avg Stars
               </a>
             </div>
           </div>
@@ -127,57 +145,70 @@
                   <th>Role</th>
 
                   <% if (rankBy === "donos") { %>
-                    <th>Donations</th>
-                    <th>Received</th>
+                  <th>Donations</th>
+                  <th>Received</th>
+                  <% } else if (rankBy === "avgStars") { %>
+                  <th>Wars</th>
+                  <th>Attacks</th>
+                  <th>Missed</th>
+                  <th>Avg Stars</th>
+                  <th>Avg Dest</th>
                   <% } else { %>
-                    <th>League</th>
+                  <th>League</th>
                   <% } %>
                 </tr>
               </thead>
 
               <tbody>
                 <% clan.members.forEach(member => { %>
-                  <tr>
-                    <td><%= member.displayRank %></td>
+                <tr>
+                  <td><%= member.displayRank %></td>
 
-                    <td>
-                      <div class="d-flex align-items-center gap-2">
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <% if (member.leagueTier?.iconUrls?.small) { %>
+                      <img
+                        src="<%= member.leagueTier.iconUrls.small %>"
+                        alt="<%= member.leagueTier.name %>"
+                        class="member-league-icon"
+                      />
+                      <% } %>
 
-                        <% if (member.leagueTier?.iconUrls?.small) { %>
-                          <img
-                            src="<%= member.leagueTier.iconUrls.small %>"
-                            alt="<%= member.leagueTier.name %>"
-                            class="member-league-icon">
-                        <% } %>
-
-                        <div>
-                          <div class="fw-bold"><%= member.name %></div>
-                          <div class="text-muted small"><%= member.tag %></div>
-                        </div>
-
+                      <div>
+                        <div class="fw-bold"><%= member.name %></div>
+                        <div class="text-muted small"><%= member.tag %></div>
                       </div>
-                    </td>
+                    </div>
+                  </td>
 
-                    <td><%= member.role %></td>
+                  <td><%= member.role %></td>
 
-                    <% if (rankBy === "donos") { %>
-                      <td><%= member.donations?.toLocaleString() || 0 %></td>
-                      <td><%= member.donationsReceived?.toLocaleString() || 0 %></td>
-                    <% } else { %>
-                      <td><%= member.leagueTier?.name || "Unranked" %></td>
-                    <% } %>
-                  </tr>
+                  <% if (rankBy === "donos") { %>
+                  <td><%= member.donations?.toLocaleString() || 0 %></td>
+                  <td>
+                    <%= member.donationsReceived?.toLocaleString() || 0 %>
+                  </td>
+                  <% } else if (rankBy === "avgStars") { %>
+                  <td><%= member.warStats?.warsParticipated || 0 %></td>
+                  <td>
+                    <%= member.warStats?.attacksUsed || 0 %>/<%=
+                    member.warStats?.possibleAttacks || 0 %>
+                  </td>
+                  <td><%= member.warStats?.missedAttacks || 0 %></td>
+                  <td><%= member.warStats?.avgStars || 0 %></td>
+                  <td><%= member.warStats?.avgDestruction || 0 %>%</td>
+                  <% } else { %>
+                  <td><%= member.leagueTier?.name || "Unranked" %></td>
+                  <% } %>
+                </tr>
                 <% }) %>
               </tbody>
             </table>
           </div>
-
         </div>
       </div>
     </div>
-
   </div>
-
 </main>
 
 <%- include("partials/footer") %>

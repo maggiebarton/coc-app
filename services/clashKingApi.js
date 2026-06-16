@@ -11,7 +11,7 @@ function encodeTag(tag) {
     return encodeURIComponent(normalizeTag(tag));
 }
 
-async function getPreviousWars(clanTag, limit = 10, timestampStart = 0, timestampEnd = 9999999999) {
+async function getPreviousWars(clanTag, limit = 50, timestampStart = 0, timestampEnd = 9999999999) {
     const response = await axios.get(
         `${BASE_URL}/war/${encodeTag(clanTag)}/previous`,
         {

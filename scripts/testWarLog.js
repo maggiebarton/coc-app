@@ -11,7 +11,7 @@ async function main() {
             console.log(`War log for ${clan.key} - ${clan.tag}`);
             console.log("==============================\n");
 
-            const warLog = await getClanWarLog(clan.tag, 1);
+            const warLog = await getClanWarLog(clan.tag, 10);
 
             console.dir(warLog, { depth: null });
         }

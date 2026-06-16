@@ -21,6 +21,44 @@ function getWarSides(war, clanTag) {
     };
 }
 
+function parseClashDate(dateString) {
+    if (!dateString) return null;
+
+    // Converts 20260614T132726.000Z
+    // to      2026-06-14T13:27:26.000Z
+    const formatted = dateString.replace(
+        /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/,
+        "$1-$2-$3T$4:$5:$6"
+    );
+
+    return new Date(formatted);
+}
+
+function isCurrentMonthWar(war) {
+    const warDate = parseClashDate(war.endTime);
+    const now = new Date();
+
+    if (!warDate || Number.isNaN(warDate.getTime())) {
+        return false;
+    }
+
+    return (
+        warDate.getUTCFullYear() === now.getUTCFullYear() &&
+        warDate.getUTCMonth() === now.getUTCMonth()
+    );
+}
+
+function getRegularWars(wars = []) {
+    return wars.filter(war => war.attacksPerMember === 2);
+}
+
+function getCurrentMonthRegularWars(wars = []) {
+    return wars.filter(war =>
+        war.attacksPerMember === 2 &&
+        isCurrentMonthWar(war)
+    );
+}
+
 function mapWarToAttackRows(war, clanTag, clanKey = null) {
     const { clanSide, opponentSide } = getWarSides(war, clanTag);
 
@@ -229,5 +267,7 @@ module.exports = {
     mapWarToAttackRows,
     mapWarsToAttackRows,
     summarizeWarPlayerStats,
-    combinePlayerStats
+    combinePlayerStats,
+    getRegularWars,
+    getCurrentMonthRegularWars
 };

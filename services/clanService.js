@@ -54,6 +54,11 @@ function rankMembers(members, rankBy = "league") {
         sortedMembers.sort((a, b) => {
             return (b.donations || 0) - (a.donations || 0);
         });
+    } 
+    else if (rankBy === "avgStars") {
+        sortedMembers.sort((a, b) => {
+            return (b.avgStars || 0) - (a.avgStars || 0);
+        });
     } else {
         sortedMembers.sort((a, b) => {
             return (a.clanRank || 999) - (b.clanRank || 999);
