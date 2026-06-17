@@ -43,7 +43,10 @@ function splitClanResponse(clan) {
 
     return {
         clanInfo: mapClanInfo(clan),
-        members: memberList
+        members: memberList.map(member => ({
+            ...member,
+            displayRole: normalizeRole(member.role)
+        }))
     };
 }
 
@@ -54,7 +57,7 @@ function rankMembers(members, rankBy = "league") {
         sortedMembers.sort((a, b) => {
             return (b.donations || 0) - (a.donations || 0);
         });
-    } 
+    }
     else if (rankBy === "avgStars") {
         sortedMembers.sort((a, b) => {
             return (b.avgStars || 0) - (a.avgStars || 0);
@@ -69,6 +72,25 @@ function rankMembers(members, rankBy = "league") {
         ...member,
         displayRank: index + 1
     }));
+}
+
+function normalizeRole(role) {
+    switch (role) {
+        case "leader":
+            return "Leader";
+
+        case "coLeader":
+            return "Co-Leader";
+
+        case "admin":
+            return "Elder";
+
+        case "member":
+            return "Member";
+
+        default:
+            return role;
+    }
 }
 
 //single clan metadata

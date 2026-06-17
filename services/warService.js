@@ -34,7 +34,7 @@ function parseClashDate(dateString) {
     return new Date(formatted);
 }
 
-function isCurrentMonthWar(war) {
+function isWithinRollingDays(war, days = 30) {
     const warDate = parseClashDate(war.endTime);
     const now = new Date();
 
@@ -42,9 +42,16 @@ function isCurrentMonthWar(war) {
         return false;
     }
 
-    return (
-        warDate.getUTCFullYear() === now.getUTCFullYear() &&
-        warDate.getUTCMonth() === now.getUTCMonth()
+    const cutoffDate = new Date(now);
+    cutoffDate.setUTCDate(cutoffDate.getUTCDate() - days);
+
+    return warDate >= cutoffDate && warDate <= now;
+}
+
+function getRollingRegularWars(wars = [], days = 30) {
+    return wars.filter(war =>
+        war.attacksPerMember === 2 &&
+        isWithinRollingDays(war, days)
     );
 }
 
@@ -269,5 +276,6 @@ module.exports = {
     summarizeWarPlayerStats,
     combinePlayerStats,
     getRegularWars,
-    getCurrentMonthRegularWars
+    getCurrentMonthRegularWars,
+    getRollingRegularWars
 };

@@ -10,8 +10,10 @@ const { getCurrentWar } = require("../services/clashApi");
 const {
   summarizeWarPlayerStats,
   combinePlayerStats,
-  getCurrentMonthRegularWars,
+  getRollingRegularWars,
 } = require("../services/warService");
+
+const clansConfig = require("../config/clans");
 
 router.get("/", async (req, res, next) => {
   try {
@@ -36,30 +38,55 @@ router.get("/:clanKey", async (req, res, next) => {
       return res.status(404).send("Clan not found");
     }
 
-    const previousWarData = await getPreviousWars(clan.tag, 20);
-    const currentWar = await getCurrentWar(clan.tag);
+    const allWarStats = [];
+    const allRegularWars = [];
 
-    const allWars = [
-      ...(currentWar?.state === "warEnded" ? [currentWar] : []),
-      ...previousWarData.items,
-    ];
+    for (const clanConfig of clansConfig) {
+      const previousWarData = await getPreviousWars(clanConfig.tag, 50);
 
-    const regularWars = getCurrentMonthRegularWars(allWars);
+      let currentWar = null;
 
-    const perWarPlayerStats = regularWars.flatMap((war) =>
-      summarizeWarPlayerStats(war, clan.tag, clan.key)
+      try {
+        currentWar = await getCurrentWar(clanConfig.tag);
+      } catch (error) {
+        currentWar = null;
+      }
+
+      const allWars = [
+        ...(currentWar?.state === "warEnded" ? [currentWar] : []),
+        ...(previousWarData.items || []),
+      ];
+
+      const regularWars = getRollingRegularWars(allWars, 30);
+
+      allRegularWars.push(
+        ...regularWars.map((war) => ({
+          ...war,
+          sourceClanKey: clanConfig.key,
+          sourceClanName: clanConfig.name,
+          sourceClanTag: clanConfig.tag,
+        }))
+      );
+
+      const perWarPlayerStats = regularWars.flatMap((war) =>
+        summarizeWarPlayerStats(war, clanConfig.tag, clanConfig.key)
+      );
+
+      allWarStats.push(...perWarPlayerStats);
+    }
+
+    const combinedWarStats = combinePlayerStats(allWarStats);
+
+    const currentMemberTags = new Set(
+      clan.members.map((member) => member.tag)
     );
 
-    const combinedWarStats = combinePlayerStats(perWarPlayerStats);
-
-    const currentMemberTags = new Set(clan.members.map((member) => member.tag));
-
-    const currentMonthWarStats = combinedWarStats.filter((player) =>
+    const currentMemberWarStats = combinedWarStats.filter((player) =>
       currentMemberTags.has(player.playerTag)
     );
 
     const warStatsByTag = new Map(
-      currentMonthWarStats.map((player) => [player.playerTag, player])
+      currentMemberWarStats.map((player) => [player.playerTag, player])
     );
 
     clan.members = clan.members.map((member) => ({
@@ -69,30 +96,46 @@ router.get("/:clanKey", async (req, res, next) => {
 
     if (rankBy === "avgStars") {
       clan.members.sort((a, b) => {
-        const aStars = a.warStats?.avgStars || 0;
-        const bStars = b.warStats?.avgStars || 0;
-
-        if (bStars !== aStars) {
-          return bStars - aStars;
-        }
+        const aStats = a.warStats || {};
+        const bStats = b.warStats || {};
 
         return (
-          (b.warStats?.avgDestruction || 0) - (a.warStats?.avgDestruction || 0)
+          (bStats.avgStars || 0) - (aStats.avgStars || 0) ||
+          (bStats.avgDestruction || 0) - (aStats.avgDestruction || 0) ||
+          (b.townHallLevel || 0) - (a.townHallLevel || 0)
         );
       });
 
-      clan.members = clan.members.map((member, index) => ({
-        ...member,
-        displayRank: index + 1,
-      }));
+      let currentRank = 0;
+      let previousKey = null;
+
+      clan.members = clan.members.map((member, index) => {
+        const stats = member.warStats || {};
+
+        const rankKey = [
+          stats.avgStars || 0,
+          stats.avgDestruction || 0,
+          member.townHallLevel || 0,
+        ].join("|");
+
+        if (rankKey !== previousKey) {
+          currentRank = index + 1;
+          previousKey = rankKey;
+        }
+
+        return {
+          ...member,
+          displayRank: currentRank,
+        };
+      });
     }
 
     res.render("clanDetails", {
       title: `${clan.clanInfo.name} Dashboard`,
       clan,
       rankBy,
-      regularWars,
-      combinedWarStats: currentMonthWarStats,
+      regularWars: allRegularWars,
+      combinedWarStats: currentMemberWarStats,
     });
   } catch (error) {
     next(error);

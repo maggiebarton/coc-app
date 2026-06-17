@@ -1,0 +1,32 @@
+<div class="modal fade" id="timModal" tabindex="-1" aria-labelledby="timModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content tim-modal">
+      <div class="modal-header border-0">
+        <h5 class="modal-title" id="timModalLabel">🚨 Tim Alert</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body text-center">
+        <div class="tim-count mb-3">
+          Tim has been ignored <span id="timIgnoreCount"></span> times this week.
+        </div>
+
+        <p class="text-muted mb-4">
+          Clan morale is hanging by a thread.
+        </p>
+
+        <div id="timResponse" class="tim-response d-none mb-3"></div>
+
+        <div class="d-flex justify-content-center gap-2" id="timChoiceButtons">
+          <button type="button" class="btn btn-fw-primary" id="stopIgnoringTim">
+            Stop Ignoring Tim
+          </button>
+
+          <button type="button" class="btn btn-outline-light" id="keepIgnoringTim">
+            Keep Ignoring Tim
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -137,3 +137,27 @@ body {
 .scoreboard-select {
   min-width: 220px;
 }
+
+.tim-modal {
+  background: linear-gradient(135deg, #171022, #2b1740);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+}
+
+.tim-count {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.tim-count span {
+  color: #ffcc66;
+}
+
+.tim-response {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  padding: 12px;
+}

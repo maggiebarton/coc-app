@@ -57,8 +57,21 @@ async function getClanWarLog(clanTag, limit = 10) {
     return response.data;
 }
 
+//GET season start/end
+async function getCurrentGoldPassSeason() {
+    const response = await axios.get(
+      `${BASE_URL}/goldpass/seasons/current`,
+      {
+        headers: getHeaders()
+      }
+    );
+  
+    return response.data;
+  }
+
 module.exports = {
     getClanInfo,
     getClanWarLog,
-    getCurrentWar
+    getCurrentWar,
+    getCurrentGoldPassSeason
 };

@@ -1,5 +1,4 @@
 //scripts/testCwl.js
-// scripts/testCwl.js
 require("dotenv").config();
 
 const clans = require("../config/clans");
