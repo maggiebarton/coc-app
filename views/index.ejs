@@ -2,9 +2,138 @@
 <%- include("partials/navbar") %>
 
 <main class="container py-4">
-  <h1><%= title %></h1>
-  <p>Welcome to <%= title %></p>
-</main>
+
+  <div class="mb-4">
+    <h1 class="page-title mb-1">Filthy Witches Dashboard</h1>
+    <p class="text-muted mb-0">
+      Family overview across Sneaky Witches, Sons of Witches, and Witch?! Please!
+    </p>
+  </div>
+
+  <!-- Top Metrics -->
+  <div class="row g-4 mb-4">
+
+    <div class="col-6 col-lg-2">
+      <div class="stat-box text-center">
+        <div class="stat-value">
+          <%= seasonCountdown?.timeRemaining || "--" %>
+        </div>
+        <div class="stat-label">
+          Season Ends
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-2">
+      <div class="stat-box text-center">
+        <div class="stat-value">
+          <%= familyStats.totalMembers.toLocaleString() %>
+        </div>
+        <div class="stat-label">
+          Total Members
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-2">
+      <div class="stat-box text-center">
+        <div class="stat-value">
+          <%= familyStats.totalTrophies.toLocaleString() %>
+        </div>
+        <div class="stat-label">
+          Total Trophies
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-2">
+      <div class="stat-box text-center">
+        <div class="stat-value">
+            <%= activeCwlStats.activeCwlDisplay %>
+        </div>
+        <div class="stat-label">
+          Active CWL Wars
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-2">
+      <div class="stat-box text-center">
+        <div class="stat-value">
+          <%= activeWarStats.activeWarDisplay %>
+        </div>
+        <div class="stat-label">
+          Active Regular Wars
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-2">
+      <div class="stat-box text-center">
+        <div class="stat-value">
+          <%= familyStats.familyWinRate %>%
+        </div>
+        <div class="stat-label">
+          Family Win Rate
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="row g-4">
+
+    <div class="col-md-6 col-xl-3">
+      <a href="/clans" class="text-decoration-none">
+        <div class="card clan-card h-100">
+          <div class="card-body">
+            <h4>🏰 Clans</h4>
+            <p class="text-muted mb-0">
+              View clan rosters, donations, leagues, and war stats.
+            </p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-6 col-xl-3">
+      <a href="/scoreboard" class="text-decoration-none">
+        <div class="card clan-card h-100">
+          <div class="card-body">
+            <h4>🏆 Scoreboards</h4>
+            <p class="text-muted mb-0">
+              League rankings, war rankings, and CWL performance.
+            </p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-6 col-xl-3">
+      <div class="card clan-card h-100">
+        <div class="card-body">
+          <h4>⚔️ CWL</h4>
+          <p class="text-muted mb-0">
+            Coming soon.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-xl-3">
+      <button class="card clan-card h-100 w-100 border-0 text-start" data-bs-toggle="modal" data-bs-target="#timModal">
+        <div class="card-body">
+          <h4>📊 Tim Neglect Report</h4>
+          <p class="text-muted mb-0">
+            Critical clan metrics.
+          </p>
+        </div>
+      </button>
+    </div>
+
+  </div>
+
 </main>
 
 <%- include("partials/footer") %>

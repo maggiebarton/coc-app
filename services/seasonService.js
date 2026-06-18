@@ -14,7 +14,7 @@ function parseClashDate(dateString) {
 function getTimeRemaining(endDate) {
   const now = new Date();
   const diffMs = endDate - now;
-
+  
   if (diffMs <= 0) {
     return "Season ended";
   }

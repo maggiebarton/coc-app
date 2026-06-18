@@ -69,9 +69,22 @@ async function getCurrentGoldPassSeason() {
     return response.data;
   }
 
+  //GET current CWL
+  async function getCurrentCwlLeagueGroup(clanTag) {
+    const response = await axios.get(
+      `${BASE_URL}/clans/${encodeTag(clanTag)}/currentwar/leaguegroup`,
+      {
+        headers: getHeaders()
+      }
+    );
+  
+    return response.data;
+  }
+
 module.exports = {
     getClanInfo,
     getClanWarLog,
     getCurrentWar,
-    getCurrentGoldPassSeason
+    getCurrentGoldPassSeason,
+    getCurrentCwlLeagueGroup
 };
