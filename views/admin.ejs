@@ -1,0 +1,192 @@
+<%- include("partials/header", { title }) %>
+<%- include("partials/navbar") %>
+
+<main class="container py-4">
+  <div class="d-flex justify-content-between align-items-center gap-3 mb-4 flex-wrap">
+    <div>
+      <h1 class="page-title mb-1">Admin</h1>
+      <p class="text-muted mb-0">
+        CWL lineup helper using recent war performance across all family clans.
+      </p>
+    </div>
+  </div>
+
+  <div class="card clan-card mb-4">
+    <div class="card-body">
+      <form method="GET" action="/admin">
+        <div class="row g-3 align-items-end">
+          <% clans.forEach(clan => { %>
+          <div class="col-12 col-md-4">
+            <label class="form-label mb-1" for="<%= clan.key %>Format">
+              <%= clan.name %>
+            </label>
+            <select
+              id="<%= clan.key %>Format"
+              name="<%= clan.key %>Format"
+              class="form-select form-select-sm"
+            >
+              <option value="15" <%= formats[clan.key] === "15" ? "selected" : "" %>>15v15 roster of 20</option>
+              <option value="30" <%= formats[clan.key] === "30" ? "selected" : "" %>>30v30 roster of 35</option>
+            </select>
+            <div class="text-muted small mt-1">
+              <%= clan.clanInfo?.warLeague?.name || "No CWL League" %>
+            </div>
+          </div>
+          <% }) %>
+
+          <div class="col-12">
+            <button class="btn btn-fw-primary btn-sm" type="submit">
+              Update Lineups
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <% lineupHelper.clans.forEach(cwlClan => { %>
+    <div class="col-12 col-xl-4">
+      <div class="card clan-card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+            <div>
+              <h4 class="mb-0"><%= cwlClan.name %></h4>
+              <span class="text-muted small">
+                <%= cwlClan.leagueName %> · <%= cwlClan.format %>v<%= cwlClan.format %>
+              </span>
+            </div>
+            <span class="cwl-pill"><%= cwlClan.members.length %>/<%= cwlClan.targetSize %></span>
+          </div>
+
+          <div class="table-responsive admin-lineup-table">
+            <table class="table table-dark table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>TH</th>
+                  <th>Main</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% cwlClan.members.forEach(player => { %>
+                <tr>
+                  <td>#<%= player.rank %></td>
+                  <td>
+                    <div class="fw-bold"><%= player.name %></div>
+                    <div class="text-muted small"><%= player.homeClan %></div>
+                  </td>
+                  <td><%= player.townHallLevel %></td>
+                  <td><%= toDisplayPercent(player.mainScore) %></td>
+                </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <% }) %>
+  </div>
+
+  <div class="card clan-card mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center gap-3 mb-3 flex-wrap">
+        <div>
+          <h4 class="mb-0">Ranked Player Pool</h4>
+          <span class="text-muted small"><%= lineupHelper.players.length %> current members</span>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Player</th>
+              <th>Home</th>
+              <th>Assigned</th>
+              <th>TH</th>
+              <th>Wars</th>
+              <th>Attacks</th>
+              <th>Missed</th>
+              <th>Avg Stars</th>
+              <th>Avg Dest</th>
+              <th>Avg TH Dist</th>
+              <th>Main</th>
+              <th>No TH Diff</th>
+              <th>Offense</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% lineupHelper.players.forEach(player => { %>
+            <tr>
+              <td>#<%= player.rank %></td>
+              <td>
+                <div class="fw-bold"><%= player.name %></div>
+                <div class="text-muted small"><%= player.tag %></div>
+              </td>
+              <td><%= player.homeClan %></td>
+              <td><%= player.assignedCwlClan || "Unassigned" %></td>
+              <td><%= player.townHallLevel %></td>
+              <td><%= player.warsParticipated %></td>
+              <td><%= player.numberOfAttacks %></td>
+              <td><%= player.missedAttacks %></td>
+              <td><%= player.avgStars.toFixed(2) %></td>
+              <td><%= player.avgDestructionPercent.toFixed(2) %>%</td>
+              <td><%= player.avgThDistance.toFixed(2) %></td>
+              <td><%= toDisplayPercent(player.mainScore) %></td>
+              <td><%= toDisplayPercent(player.noThDifficultyScore) %></td>
+              <td><%= toDisplayPercent(player.offenseOnlyScore) %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card clan-card">
+    <div class="card-body">
+      <h4 class="mb-3">Player Scorecards</h4>
+      <div class="row g-3">
+        <% lineupHelper.players.slice(0, 24).forEach(player => { %>
+        <div class="col-12 col-md-6 col-xl-4">
+          <div class="scorecard h-100">
+            <div class="d-flex justify-content-between gap-3 mb-2">
+              <div>
+                <div class="fw-bold"><%= player.name %></div>
+                <div class="text-muted small"><%= player.tag %></div>
+              </div>
+              <span class="cwl-pill">#<%= player.rank %></span>
+            </div>
+
+            <div class="scorecard-grid mb-2">
+              <span>TH</span><strong><%= player.townHallLevel %></strong>
+              <span>Home</span><strong><%= player.homeClan %></strong>
+              <span>CWL</span><strong><%= player.assignedCwlClan || "Unassigned" %></strong>
+              <span>Wars</span><strong><%= player.warsParticipated %></strong>
+              <span>Attacks</span><strong><%= player.numberOfAttacks %></strong>
+              <span>Missed</span><strong><%= player.missedAttacks %></strong>
+              <span>Stars</span><strong><%= player.avgStars.toFixed(2) %></strong>
+              <span>Dest</span><strong><%= player.avgDestructionPercent.toFixed(2) %>%</strong>
+              <span>TH Dist</span><strong><%= player.avgThDistance.toFixed(2) %></strong>
+            </div>
+
+            <div class="scorecard-scores mb-2">
+              <span>Main <strong><%= toDisplayPercent(player.mainScore) %></strong></span>
+              <span>No TH <strong><%= toDisplayPercent(player.noThDifficultyScore) %></strong></span>
+              <span>Offense <strong><%= toDisplayPercent(player.offenseOnlyScore) %></strong></span>
+            </div>
+
+            <p class="text-muted small mb-0"><%= player.summary %></p>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+</main>
+
+<%- include("partials/footer") %>

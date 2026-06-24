@@ -49,6 +49,343 @@
     </div>
   </div>
 
+  <div class="card clan-card mb-4">
+    <div class="card-body">
+      <div
+        class="d-flex justify-content-between align-items-start gap-3 mb-3 flex-wrap"
+      >
+        <div>
+          <h4 class="mb-0">Recent CWL</h4>
+          <span class="text-muted small">
+            <% if (cwlSummary) { %>
+            Season <%= cwlSummary.season %>
+            <% } else if (selectedCwlSeason) { %>
+            Season <%= selectedCwlSeason %>
+            <% } else { %>
+            No recent CWL data found
+            <% } %>
+          </span>
+        </div>
+
+        <form
+          method="GET"
+          action="/clans/<%= clan.key %>"
+          class="d-flex gap-2 align-items-center"
+        >
+          <input type="hidden" name="rankBy" value="<%= rankBy %>" />
+
+          <select
+            name="cwlSeason"
+            class="form-select form-select-sm cwl-season-select"
+            aria-label="CWL season"
+            onchange="this.form.submit()"
+          >
+            <% cwlSeasonOptions.forEach(season => { %>
+            <option
+              value="<%= season %>"
+              <%= season === selectedCwlSeason ? "selected" : "" %>
+            >
+              <%= season %>
+            </option>
+            <% }) %>
+          </select>
+        </form>
+      </div>
+
+      <% if (cwlSummary) { %>
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-2">
+          <div class="stat-box text-center h-100">
+            <div class="stat-value">
+              <% if (cwlSummary.currentClanStanding) { %>
+              #<%= cwlSummary.currentClanStanding.place %>
+              <% } else { %>
+              --
+              <% } %>
+            </div>
+            <div class="stat-label">Group Place</div>
+          </div>
+        </div>
+
+        <div class="col-6 col-lg-2">
+          <div class="stat-box text-center h-100">
+            <div class="stat-value">
+              <%= cwlSummary.overview.wins %>-<%= cwlSummary.overview.losses %>-<%= cwlSummary.overview.ties %>
+            </div>
+            <div class="stat-label">Record</div>
+          </div>
+        </div>
+
+        <div class="col-6 col-lg-2">
+          <div class="stat-box text-center h-100">
+            <div class="stat-value"><%= cwlSummary.overview.stars %></div>
+            <div class="stat-label">War Stars</div>
+          </div>
+        </div>
+
+        <div class="col-6 col-lg-2">
+          <div class="stat-box text-center h-100">
+            <div class="stat-value">
+              <%= cwlSummary.overview.attacksUsed %>/<%= cwlSummary.overview.possibleAttacks %>
+            </div>
+            <div class="stat-label">Attacks</div>
+          </div>
+        </div>
+
+        <div class="col-6 col-lg-2">
+          <div class="stat-box text-center h-100">
+            <div class="stat-value">
+              <%= cwlSummary.overview.missedAttacks %>
+            </div>
+            <div class="stat-label">Missed</div>
+          </div>
+        </div>
+
+        <div class="col-6 col-lg-2">
+          <div class="stat-box text-center h-100">
+            <div class="stat-value">
+              <%= cwlSummary.overview.completedRounds %>/<%= cwlSummary.rounds.length %>
+            </div>
+            <div class="stat-label">Rounds Done</div>
+          </div>
+        </div>
+      </div>
+
+      <% if (cwlHistory.points.length > 0) { %>
+      <div class="cwl-history mb-4">
+        <div
+          class="d-flex justify-content-between align-items-center gap-3 mb-2 flex-wrap"
+        >
+          <h5 class="mb-0">12-Month CWL Trend</h5>
+          <span class="text-muted small">
+            Green dots mark promotion finishes
+          </span>
+        </div>
+
+        <div class="cwl-chart-wrap">
+          <svg
+            class="cwl-chart"
+            viewBox="0 0 <%= cwlHistory.chartWidth %> <%= cwlHistory.chartHeight %>"
+            role="img"
+            aria-label="CWL group placement trend"
+          >
+            <line x1="42" y1="26" x2="42" y2="178" class="cwl-chart-axis" />
+            <line x1="42" y1="178" x2="598" y2="178" class="cwl-chart-axis" />
+
+            <line x1="42" y1="26" x2="598" y2="26" class="cwl-chart-grid" />
+            <line x1="42" y1="91.1" x2="598" y2="91.1" class="cwl-chart-grid" />
+            <line x1="42" y1="178" x2="598" y2="178" class="cwl-chart-grid" />
+
+            <text x="12" y="31" class="cwl-chart-label">#1</text>
+            <text x="12" y="96" class="cwl-chart-label">#4</text>
+            <text x="12" y="183" class="cwl-chart-label">#8</text>
+
+            <% if (cwlHistory.points.length > 1) { %>
+            <polyline
+              points="<%= cwlHistory.pointList %>"
+              class="cwl-chart-line"
+            />
+            <% } %>
+
+            <% cwlHistory.points.forEach(point => { %>
+            <g>
+              <circle
+                cx="<%= point.x %>"
+                cy="<%= point.y %>"
+                r="<%= point.isPromotionFinish ? 6 : 4.5 %>"
+                class="cwl-chart-point <%= point.isPromotionFinish ? 'cwl-chart-point-promo' : '' %>"
+              />
+              <text
+                x="<%= point.x %>"
+                y="204"
+                class="cwl-chart-season"
+              >
+                <%= point.label %>
+              </text>
+            </g>
+            <% }) %>
+          </svg>
+        </div>
+
+      </div>
+      <% } %>
+
+      <% if (cwlLeagueHistory.points.length > 0) { %>
+      <div class="cwl-history mb-4">
+        <div
+          class="d-flex justify-content-between align-items-center gap-3 mb-2 flex-wrap"
+        >
+          <h5 class="mb-0">CWL League History</h5>
+          <span class="text-muted small">
+            Inferred from current league and past finishes
+          </span>
+        </div>
+
+        <div class="cwl-chart-wrap">
+          <svg
+            class="cwl-chart"
+            viewBox="0 0 <%= cwlLeagueHistory.chartWidth %> <%= cwlLeagueHistory.chartHeight %>"
+            role="img"
+            aria-label="Inferred CWL league history"
+          >
+            <line x1="42" y1="28" x2="42" y2="192" class="cwl-chart-axis" />
+            <line x1="42" y1="192" x2="598" y2="192" class="cwl-chart-axis" />
+
+            <line x1="42" y1="28" x2="598" y2="28" class="cwl-chart-grid" />
+            <line x1="42" y1="110" x2="598" y2="110" class="cwl-chart-grid" />
+            <line x1="42" y1="192" x2="598" y2="192" class="cwl-chart-grid" />
+
+            <text x="4" y="33" class="cwl-chart-label"><%= cwlLeagueHistory.maxLeagueName %></text>
+            <text x="4" y="115" class="cwl-chart-label"><%= cwlLeagueHistory.middleLeagueName %></text>
+            <text x="4" y="197" class="cwl-chart-label"><%= cwlLeagueHistory.minLeagueName %></text>
+
+            <% if (cwlLeagueHistory.points.length > 1) { %>
+            <polyline
+              points="<%= cwlLeagueHistory.pointList %>"
+              class="cwl-chart-line cwl-chart-line-league"
+            />
+            <% } %>
+
+            <% cwlLeagueHistory.points.forEach(point => { %>
+            <g>
+              <circle
+                cx="<%= point.x %>"
+                cy="<%= point.y %>"
+                r="<%= point.transition !== 'Stayed' ? 6 : 4.5 %>"
+                class="cwl-chart-point cwl-chart-point-<%= point.transition.toLowerCase() %>"
+              />
+              <% if (point.transition === "Promoted") { %>
+              <g class="cwl-chart-callout">
+                <line
+                  x1="<%= point.x %>"
+                  y1="<%= point.y %>"
+                  x2="<%= point.x %>"
+                  y2="<%= point.calloutLineY %>"
+                />
+                <text
+                  x="<%= point.x %>"
+                  y="<%= point.calloutY %>"
+                >
+                  Promoted to <%= point.leagueName %>
+                </text>
+              </g>
+              <% } %>
+              <text
+                x="<%= point.x %>"
+                y="222"
+                class="cwl-chart-season"
+              >
+                <%= point.label %>
+              </text>
+            </g>
+            <% }) %>
+          </svg>
+        </div>
+
+      </div>
+      <% } %>
+
+      <h5 class="mb-2">Round Matchups</h5>
+      <div class="table-responsive mb-4">
+        <table class="table table-dark table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Round</th>
+              <th>Opponent</th>
+              <th>Status</th>
+              <th>Result</th>
+              <th>Stars</th>
+              <th>Destruction</th>
+              <th>Attacks</th>
+              <th>Missed</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <% cwlSummary.rounds.forEach(round => { %>
+            <tr>
+              <td><%= round.round %></td>
+              <td>
+                <div class="fw-bold"><%= round.opponentClanName %></div>
+                <% if (round.opponentClanTag) { %>
+                <div class="text-muted small"><%= round.opponentClanTag %></div>
+                <% } %>
+              </td>
+              <td><span class="cwl-pill"><%= round.state %></span></td>
+              <td>
+                <span class="cwl-result cwl-result-<%= round.result.toLowerCase() %>">
+                  <%= round.result %>
+                </span>
+              </td>
+              <td><%= round.clanStars %> - <%= round.opponentStars %></td>
+              <td>
+                <%= round.clanDestruction.toFixed ? round.clanDestruction.toFixed(1) : round.clanDestruction %>%
+                -
+                <%= round.opponentDestruction.toFixed ? round.opponentDestruction.toFixed(1) : round.opponentDestruction %>%
+              </td>
+              <td><%= round.attacksUsed %>/<%= round.possibleAttacks %></td>
+              <td><%= round.missedAttacks %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <% if (cwlSummary.standings.length > 0) { %>
+      <h5 class="mb-2">Group Standings</h5>
+      <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Place</th>
+              <th>Clan</th>
+              <th>Record</th>
+              <th>CWL Stars</th>
+              <th>War Stars</th>
+              <th>Avg Dest</th>
+              <th>Attacks</th>
+              <th>Missed</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <% cwlSummary.standings.forEach(standing => { %>
+            <tr class="<%= standing.isCurrentClan ? 'cwl-current-clan' : '' %>">
+              <td>#<%= standing.place %></td>
+              <td>
+                <div class="fw-bold"><%= standing.clanName %></div>
+                <div class="text-muted small"><%= standing.clanTag %></div>
+              </td>
+              <td>
+                <%= standing.wins %>-<%= standing.losses %>-<%= standing.ties %>
+              </td>
+              <td>
+                <%= standing.cwlStars %>
+                <% if (standing.bonusStars > 0) { %>
+                <span class="text-muted small">
+                  (<%= standing.bonusStars %> bonus)
+                </span>
+                <% } %>
+              </td>
+              <td><%= standing.stars %></td>
+              <td><%= standing.averageDestruction %>%</td>
+              <td><%= standing.attacksUsed %>/<%= standing.possibleAttacks %></td>
+              <td><%= standing.missedAttacks %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <% } %>
+      <% } else { %>
+      <p class="text-muted mb-0">
+        CWL rounds will appear here once ClashKing has recent season data for
+        this clan.
+      </p>
+      <% } %>
+    </div>
+  </div>
+
   <div class="row g-4">
     <div class="col-12 col-lg-4">
       <div class="card clan-card h-100">
@@ -181,7 +518,7 @@
                     </div>
                   </td>
 
-                  <td><td><%= member.displayRole %></td></td>
+                  <td><%= member.displayRole %></td>
 
                   <% if (rankBy === "donos") { %>
                   <td><%= member.donations?.toLocaleString() || 0 %></td>
