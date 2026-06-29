@@ -6,7 +6,7 @@
     <div>
       <h1 class="page-title mb-1">Admin</h1>
       <p class="text-muted mb-0">
-        CWL lineup helper using recent war performance across all family clans.
+        CWL lineup helper comparing 60-day regular-war performance with the most recent CWL season.
       </p>
     </div>
   </div>
@@ -34,9 +34,18 @@
           </div>
           <% }) %>
 
-          <div class="col-12">
+          <div class="col-12 d-flex gap-2 flex-wrap">
             <button class="btn btn-fw-primary btn-sm" type="submit">
               Update Lineups
+            </button>
+            <button
+              class="btn btn-outline-warning btn-sm"
+              type="submit"
+              formaction="/admin/overrides/reset"
+              formmethod="POST"
+              onclick="return window.confirm('Clear every manual lineup assignment and removal?')"
+            >
+              Reset all to automatic scoring
             </button>
           </div>
         </div>
@@ -52,33 +61,86 @@
           <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
             <div>
               <h4 class="mb-0"><%= cwlClan.name %></h4>
-              <span class="text-muted small">
-                <%= cwlClan.leagueName %> · <%= cwlClan.format %>v<%= cwlClan.format %>
+              <span class="text-muted small js-cwl-roster-meta">
+                <% if (cwlClan.isOverflow) { %>
+                  Overflow roster · <%= cwlClan.tag %>
+                <% } else { %>
+                  <%= cwlClan.leagueName %> · <%= cwlClan.format %>v<%= cwlClan.format %>
+                <% } %>
               </span>
             </div>
-            <span class="cwl-pill"><%= cwlClan.members.length %>/<%= cwlClan.targetSize %></span>
+            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+              <span class="cwl-pill">
+                <%= cwlClan.isOverflow ? cwlClan.members.length : `${cwlClan.members.length}/${cwlClan.targetSize}` %>
+              </span>
+              <button
+                class="btn btn-outline-light btn-sm js-copy-cwl-roster"
+                type="button"
+                aria-label="Copy <%= cwlClan.name %> roster for Discord"
+              >
+                Copy for Discord
+              </button>
+            </div>
           </div>
 
-          <div class="table-responsive admin-lineup-table">
+          <div
+            class="table-responsive admin-lineup-table js-cwl-roster"
+            data-clan-name="<%= cwlClan.name %>"
+          >
             <table class="table table-dark table-hover align-middle mb-0">
               <thead>
                 <tr>
                   <th>Rank</th>
                   <th>Player</th>
                   <th>TH</th>
-                  <th>Main</th>
+                  <th>Combined</th>
                 </tr>
               </thead>
               <tbody>
                 <% cwlClan.members.forEach(player => { %>
-                <tr>
-                  <td>#<%= player.rank %></td>
+                <tr
+                  class="js-cwl-roster-player js-player-scorecard-row player-scorecard-row"
+                  tabindex="0"
+                  role="button"
+                  aria-label="View scorecard for <%= player.name %>"
+                  data-bs-toggle="modal"
+                  data-bs-target="#playerScorecardModal"
+                  data-name="<%= player.name %>"
+                  data-tag="<%= player.tag %>"
+                  data-rank="#<%= player.rank %>"
+                  data-th="<%= player.townHallLevel %>"
+                  data-home="<%= player.homeClan %>"
+                  data-assigned="<%= player.assignedCwlClan || 'Unassigned' %>"
+                  data-override="<%= player.lineupOverride || 'automatic' %>"
+                  data-reg-rank="#<%= player.regularRank %>"
+                  data-cwl-rank="<%= player.cwlRank ? `#${player.cwlRank}` : 'No sample' %>"
+                  data-reg-clan="<%= player.regularProposedClan || 'Unassigned' %>"
+                  data-cwl-clan="<%= player.cwlProposedClan || 'Unassigned' %>"
+                  data-reg-wars="<%= player.warsParticipated %>"
+                  data-reg-attacks="<%= player.numberOfAttacks %>"
+                  data-reg-missed="<%= player.missedAttacks %>"
+                  data-reg-stars="<%= player.avgStars.toFixed(2) %>"
+                  data-reg-dest="<%= player.avgDestructionPercent.toFixed(2) %>%"
+                  data-reg-th-distance="<%= player.avgThDistance.toFixed(2) %>"
+                  data-cwl-wars="<%= player.cwlWarsParticipated %>"
+                  data-cwl-attacks="<%= player.cwlAttacksUsed %>"
+                  data-cwl-missed="<%= player.cwlMissedAttacks == null ? '—' : player.cwlMissedAttacks %>"
+                  data-cwl-stars="<%= player.cwlAvgStars == null ? '—' : player.cwlAvgStars.toFixed(2) %>"
+                  data-cwl-dest="<%= player.cwlAvgDestructionPercent == null ? '—' : `${player.cwlAvgDestructionPercent.toFixed(2)}%` %>"
+                  data-cwl-th-distance="<%= player.cwlAvgThDistance == null ? '—' : player.cwlAvgThDistance.toFixed(2) %>"
+                  data-main-score="<%= toDisplayPercent(player.mainScore) %>"
+                  data-reg-score="<%= toDisplayPercent(player.regularMainScore) %>"
+                  data-cwl-score="<%= player.cwlMainScore == null ? '—' : toDisplayPercent(player.cwlMainScore) %>"
+                  data-decision="<%= player.assignmentReason %>"
+                  data-summary="<%= player.summary %>"
+                >
+                  <td class="js-cwl-rank">#<%= player.rank %></td>
                   <td>
-                    <div class="fw-bold"><%= player.name %></div>
-                    <div class="text-muted small"><%= player.homeClan %></div>
+                    <div class="fw-bold js-cwl-player-name"><%= player.name %></div>
+                    <div class="text-muted small js-cwl-home-clan"><%= player.homeClan %></div>
                   </td>
-                  <td><%= player.townHallLevel %></td>
-                  <td><%= toDisplayPercent(player.mainScore) %></td>
+                  <td class="js-cwl-town-hall"><%= player.townHallLevel %></td>
+                  <td title="<%= player.assignmentReason %>"><%= toDisplayPercent(player.mainScore) %></td>
                 </tr>
                 <% }) %>
               </tbody>
@@ -105,40 +167,79 @@
             <tr>
               <th>Rank</th>
               <th>Player</th>
+              <th>TH</th>
               <th>Home</th>
               <th>Assigned</th>
-              <th>TH</th>
-              <th>Wars</th>
-              <th>Attacks</th>
-              <th>Missed</th>
-              <th>Avg Stars</th>
-              <th>Avg Dest</th>
-              <th>Avg TH Dist</th>
+              <th>Reg Rank</th>
+              <th>CWL Rank</th>
+              <th>Decision</th>
+              <th>Reg Attacks</th>
+              <th>CWL Attacks</th>
+              <th>Reg Avg Stars</th>
+              <th>CWL Avg Stars</th>
               <th>Main</th>
-              <th>No TH Diff</th>
-              <th>Offense</th>
+              <th>Reg Score</th>
+              <th>CWL Score</th>
             </tr>
           </thead>
           <tbody>
             <% lineupHelper.players.forEach(player => { %>
-            <tr>
+            <tr
+              class="js-player-scorecard-row player-scorecard-row"
+              tabindex="0"
+              role="button"
+              aria-label="View scorecard for <%= player.name %>"
+              data-bs-toggle="modal"
+              data-bs-target="#playerScorecardModal"
+              data-name="<%= player.name %>"
+              data-tag="<%= player.tag %>"
+              data-rank="#<%= player.rank %>"
+              data-th="<%= player.townHallLevel %>"
+              data-home="<%= player.homeClan %>"
+              data-assigned="<%= player.assignedCwlClan || 'Unassigned' %>"
+              data-override="<%= player.lineupOverride || 'automatic' %>"
+              data-reg-rank="#<%= player.regularRank %>"
+              data-cwl-rank="<%= player.cwlRank ? `#${player.cwlRank}` : 'No sample' %>"
+              data-reg-clan="<%= player.regularProposedClan || 'Unassigned' %>"
+              data-cwl-clan="<%= player.cwlProposedClan || 'Unassigned' %>"
+              data-reg-wars="<%= player.warsParticipated %>"
+              data-reg-attacks="<%= player.numberOfAttacks %>"
+              data-reg-missed="<%= player.missedAttacks %>"
+              data-reg-stars="<%= player.avgStars.toFixed(2) %>"
+              data-reg-dest="<%= player.avgDestructionPercent.toFixed(2) %>%"
+              data-reg-th-distance="<%= player.avgThDistance.toFixed(2) %>"
+              data-cwl-wars="<%= player.cwlWarsParticipated %>"
+              data-cwl-attacks="<%= player.cwlAttacksUsed %>"
+              data-cwl-missed="<%= player.cwlMissedAttacks == null ? '—' : player.cwlMissedAttacks %>"
+              data-cwl-stars="<%= player.cwlAvgStars == null ? '—' : player.cwlAvgStars.toFixed(2) %>"
+              data-cwl-dest="<%= player.cwlAvgDestructionPercent == null ? '—' : `${player.cwlAvgDestructionPercent.toFixed(2)}%` %>"
+              data-cwl-th-distance="<%= player.cwlAvgThDistance == null ? '—' : player.cwlAvgThDistance.toFixed(2) %>"
+              data-main-score="<%= toDisplayPercent(player.mainScore) %>"
+              data-reg-score="<%= toDisplayPercent(player.regularMainScore) %>"
+              data-cwl-score="<%= player.cwlMainScore == null ? '—' : toDisplayPercent(player.cwlMainScore) %>"
+              data-decision="<%= player.assignmentReason %>"
+              data-summary="<%= player.summary %>"
+            >
               <td>#<%= player.rank %></td>
               <td>
                 <div class="fw-bold"><%= player.name %></div>
                 <div class="text-muted small"><%= player.tag %></div>
               </td>
+              <td><%= player.townHallLevel %></td>
               <td><%= player.homeClan %></td>
               <td><%= player.assignedCwlClan || "Unassigned" %></td>
-              <td><%= player.townHallLevel %></td>
-              <td><%= player.warsParticipated %></td>
+              <td>#<%= player.regularRank %></td>
+              <td><%= player.cwlRank ? `#${player.cwlRank}` : "—" %></td>
+              <td>
+                <span class="cwl-pill"><%= player.lineupOverride ? "Manual" : player.lineupAgreement ? "Agreement" : player.cwlRank ? "Blended" : "Regular only" %></span>
+              </td>
               <td><%= player.numberOfAttacks %></td>
-              <td><%= player.missedAttacks %></td>
+              <td><%= player.cwlAttacksUsed %></td>
               <td><%= player.avgStars.toFixed(2) %></td>
-              <td><%= player.avgDestructionPercent.toFixed(2) %>%</td>
-              <td><%= player.avgThDistance.toFixed(2) %></td>
+              <td><%= player.cwlAvgStars == null ? "—" : player.cwlAvgStars.toFixed(2) %></td>
               <td><%= toDisplayPercent(player.mainScore) %></td>
-              <td><%= toDisplayPercent(player.noThDifficultyScore) %></td>
-              <td><%= toDisplayPercent(player.offenseOnlyScore) %></td>
+              <td><%= toDisplayPercent(player.regularMainScore) %></td>
+              <td><%= player.cwlMainScore == null ? "—" : toDisplayPercent(player.cwlMainScore) %></td>
             </tr>
             <% }) %>
           </tbody>
@@ -147,46 +248,51 @@
     </div>
   </div>
 
-  <div class="card clan-card">
-    <div class="card-body">
-      <h4 class="mb-3">Player Scorecards</h4>
-      <div class="row g-3">
-        <% lineupHelper.players.slice(0, 24).forEach(player => { %>
-        <div class="col-12 col-md-6 col-xl-4">
-          <div class="scorecard h-100">
-            <div class="d-flex justify-content-between gap-3 mb-2">
-              <div>
-                <div class="fw-bold"><%= player.name %></div>
-                <div class="text-muted small"><%= player.tag %></div>
-              </div>
-              <span class="cwl-pill">#<%= player.rank %></span>
-            </div>
+</main>
 
-            <div class="scorecard-grid mb-2">
-              <span>TH</span><strong><%= player.townHallLevel %></strong>
-              <span>Home</span><strong><%= player.homeClan %></strong>
-              <span>CWL</span><strong><%= player.assignedCwlClan || "Unassigned" %></strong>
-              <span>Wars</span><strong><%= player.warsParticipated %></strong>
-              <span>Attacks</span><strong><%= player.numberOfAttacks %></strong>
-              <span>Missed</span><strong><%= player.missedAttacks %></strong>
-              <span>Stars</span><strong><%= player.avgStars.toFixed(2) %></strong>
-              <span>Dest</span><strong><%= player.avgDestructionPercent.toFixed(2) %>%</strong>
-              <span>TH Dist</span><strong><%= player.avgThDistance.toFixed(2) %></strong>
-            </div>
-
-            <div class="scorecard-scores mb-2">
-              <span>Main <strong><%= toDisplayPercent(player.mainScore) %></strong></span>
-              <span>No TH <strong><%= toDisplayPercent(player.noThDifficultyScore) %></strong></span>
-              <span>Offense <strong><%= toDisplayPercent(player.offenseOnlyScore) %></strong></span>
-            </div>
-
-            <p class="text-muted small mb-0"><%= player.summary %></p>
-          </div>
+<div class="modal fade" id="playerScorecardModal" tabindex="-1" aria-labelledby="playerScorecardTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content scorecard-modal">
+      <div class="modal-header border-secondary">
+        <div>
+          <h4 class="modal-title" id="playerScorecardTitle"></h4>
+          <div class="text-muted small" id="playerScorecardTag"></div>
         </div>
-        <% }) %>
+        <div class="d-flex align-items-center gap-2 ms-auto me-3">
+          <span class="cwl-pill" id="playerScorecardRank"></span>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="scorecard-grid scorecard-modal-grid mb-3" id="playerScorecardDetails"></div>
+        <div class="scorecard-scores mb-3" id="playerScorecardScores"></div>
+        <p class="text-muted small mb-1" id="playerScorecardDecision"></p>
+        <p class="text-muted small mb-0" id="playerScorecardSummary"></p>
+        <form method="POST" action="/admin/overrides" class="lineup-override-form mt-4 pt-3 border-top border-secondary">
+          <input type="hidden" name="playerTag" id="playerOverrideTag">
+          <% clans.forEach(clan => { %>
+          <input type="hidden" name="<%= clan.key %>Format" value="<%= formats[clan.key] %>">
+          <% }) %>
+          <label class="form-label" for="playerOverrideDestination">Manual lineup override</label>
+          <div class="d-flex gap-2 flex-wrap">
+            <select class="form-select" name="destination" id="playerOverrideDestination">
+              <option value="automatic">Automatic (use scoring model)</option>
+              <% lineupHelper.clans.forEach(clan => { %>
+              <option value="<%= clan.key %>">Assign to <%= clan.name %></option>
+              <% }) %>
+              <option value="removed">Removed from all lineups</option>
+            </select>
+            <button type="submit" class="btn btn-fw-primary">Save override</button>
+          </div>
+          <div class="text-muted small mt-2">
+            Manual assignments take priority over automatic placements.
+          </div>
+        </form>
       </div>
     </div>
   </div>
-</main>
+</div>
 
+<script src="/javascripts/cwlRosterExport.js"></script>
+<script src="/javascripts/adminPlayerModal.js"></script>
 <%- include("partials/footer") %>

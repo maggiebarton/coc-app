@@ -1,3 +1,4 @@
 node_modules/
 .env
 .DS_Store
+data/cwl-lineup-overrides.json

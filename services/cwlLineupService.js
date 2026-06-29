@@ -56,10 +56,14 @@ function getRosterTarget(format) {
     return String(format) === "30" ? 35 : 20;
 }
 
-function getScoreComponents(player, minTh, maxTh) {
-    const possibleAttacks = player.warsParticipated * 2;
+function getScoreComponents(player, minTh, maxTh, activityTarget = 5) {
+    const possibleAttacks = player.possibleAttacks ?? (player.warsParticipated * 2);
     const thLevelScore = normalize(player.townHallLevel || 0, minTh, maxTh);
-    const activityScore = clamp(safeDivide(player.warsParticipated, 5), 0, 1);
+    const activityScore = clamp(
+        safeDivide(player.warsParticipated, activityTarget),
+        0,
+        1
+    );
     const attackUsageRate = clamp(
         safeDivide(player.numberOfAttacks, possibleAttacks),
         0,
@@ -151,7 +155,11 @@ function getPlayerSummary(player, components) {
     };
 }
 
-function buildScoredPlayers(clansWithMembers = [], combinedWarStats = []) {
+function buildScoredPlayers(
+    clansWithMembers = [],
+    combinedWarStats = [],
+    activityTarget = 5
+) {
     const warStatsByTag = new Map(
         combinedWarStats.map(stats => [stats.playerTag, stats])
     );
@@ -164,6 +172,9 @@ function buildScoredPlayers(clansWithMembers = [], combinedWarStats = []) {
                 tag: member.tag,
                 townHallLevel: member.townHallLevel || warStats.townhallLevel || 0,
                 warsParticipated: warStats.warsParticipated || 0,
+                possibleAttacks: warStats.possibleAttacks ?? (
+                    (warStats.warsParticipated || 0) * 2
+                ),
                 numberOfAttacks: warStats.attacksUsed || 0,
                 avgStars: warStats.avgStars || 0,
                 avgDestructionPercent: warStats.avgDestruction || 0,
@@ -181,7 +192,12 @@ function buildScoredPlayers(clansWithMembers = [], combinedWarStats = []) {
 
     return rawPlayers
         .map(player => {
-            const componentScores = getScoreComponents(player, minTh, maxTh);
+            const componentScores = getScoreComponents(
+                player,
+                minTh,
+                maxTh,
+                activityTarget
+            );
             const finalScores = getFinalScores(componentScores);
             const summary = getPlayerSummary(player, componentScores);
 
@@ -273,10 +289,291 @@ function assignPlayersToCwlClans(players = [], clanTargets = []) {
     };
 }
 
-function buildCwlLineupHelper(clansWithMembers = [], combinedWarStats = [], formats = {}) {
-    const scoredPlayers = buildScoredPlayers(clansWithMembers, combinedWarStats);
+function getAssignmentMap(players = [], clanTargets = []) {
+    const assignments = assignPlayersToCwlClans(
+        players,
+        clanTargets.map(clan => ({ ...clan, members: [] }))
+    );
+
+    return new Map(
+        assignments.players.map(player => [player.tag, player.assignedCwlClan])
+    );
+}
+
+function getModeConfidence(player, targetWars) {
+    return clamp(safeDivide(player.warsParticipated, targetWars), 0, 1);
+}
+
+function buildConsensusPlayers(regularPlayers, cwlPlayers, regularAssignments, cwlAssignments) {
+    const cwlByTag = new Map(cwlPlayers.map(player => [player.tag, player]));
+
+    return regularPlayers.map(regularPlayer => {
+        const cwlPlayer = cwlByTag.get(regularPlayer.tag);
+        const hasRegularData = regularPlayer.warsParticipated > 0;
+        const hasCwlData = cwlPlayer?.warsParticipated > 0;
+        const regularConfidence = hasRegularData
+            ? getModeConfidence(regularPlayer, 5)
+            : 0;
+        const cwlConfidence = hasCwlData
+            ? getModeConfidence(cwlPlayer, 3)
+            : 0;
+        const totalConfidence = regularConfidence + cwlConfidence;
+        const mainScore = totalConfidence > 0
+            ? (
+                (regularPlayer.mainScore * regularConfidence) +
+                (cwlPlayer.mainScore * cwlConfidence)
+            ) / totalConfidence
+            : regularPlayer.mainScore;
+        const regularClan = regularAssignments.get(regularPlayer.tag);
+        const cwlClan = hasCwlData ? cwlAssignments.get(regularPlayer.tag) : null;
+        const lineupAgreement = Boolean(cwlClan && regularClan === cwlClan);
+
+        return {
+            ...regularPlayer,
+            mainScore,
+            regularRank: regularPlayer.rank,
+            regularMainScore: regularPlayer.mainScore,
+            regularWarsParticipated: regularPlayer.warsParticipated,
+            regularAttacksUsed: regularPlayer.numberOfAttacks,
+            cwlRank: hasCwlData ? cwlPlayer.rank : null,
+            cwlMainScore: hasCwlData ? cwlPlayer.mainScore : null,
+            cwlWarsParticipated: cwlPlayer?.warsParticipated || 0,
+            cwlAttacksUsed: cwlPlayer?.numberOfAttacks || 0,
+            cwlAvgStars: hasCwlData ? cwlPlayer.avgStars : null,
+            cwlAvgDestructionPercent: hasCwlData
+                ? cwlPlayer.avgDestructionPercent
+                : null,
+            cwlMissedAttacks: hasCwlData ? cwlPlayer.missedAttacks : null,
+            cwlAvgThDistance: hasCwlData ? cwlPlayer.avgThDistance : null,
+            regularProposedClan: regularClan,
+            cwlProposedClan: cwlClan,
+            lineupAgreement,
+            assignmentReason: lineupAgreement
+                ? "Regular and CWL lineups agree"
+                : hasCwlData
+                    ? "Blended regular and CWL ranking"
+                    : "Regular wars (no recent CWL sample)"
+        };
+    }).sort(comparePlayers).map((player, index) => ({
+        ...player,
+        rank: index + 1,
+        assignedCwlClan: null
+    }));
+}
+
+function assignConsensusPlayers(players, clanTargets) {
+    const assignedTags = new Set();
+    const clanByName = new Map(clanTargets.map(clan => [clan.name, clan]));
+
+    for (const player of players) {
+        if (!player.lineupAgreement) continue;
+
+        const clan = clanByName.get(player.regularProposedClan);
+
+        if (!clan || clan.members.length >= clan.targetSize) continue;
+
+        player.assignedCwlClan = clan.name;
+        clan.members.push(player);
+        assignedTags.add(player.tag);
+    }
+
+    const remainingPlayers = players.filter(player => !assignedTags.has(player.tag));
+    let playerIndex = 0;
+    const leagueGroups = [];
+
+    for (const clan of clanTargets) {
+        const lastGroup = leagueGroups[leagueGroups.length - 1];
+
+        if (lastGroup && lastGroup[0].leagueRank === clan.leagueRank) {
+            lastGroup.push(clan);
+        } else {
+            leagueGroups.push([clan]);
+        }
+    }
+
+    for (const group of leagueGroups) {
+        let groupHasRoom = true;
+
+        while (playerIndex < remainingPlayers.length && groupHasRoom) {
+            groupHasRoom = false;
+
+            for (const clan of group) {
+                if (playerIndex >= remainingPlayers.length) break;
+                if (clan.members.length >= clan.targetSize) continue;
+
+                const player = remainingPlayers[playerIndex++];
+                player.assignedCwlClan = clan.name;
+                clan.members.push(player);
+                groupHasRoom = true;
+            }
+        }
+    }
+
+    return { players, clans: clanTargets };
+}
+
+function applyLineupOverrides(assignments, overrides = {}) {
+    const clans = assignments.clans.map(clan => ({ ...clan, members: [] }));
+    const clanByKey = new Map(clans.map(clan => [clan.key, clan]));
+    const automaticPlayers = [];
+    const hasActiveOverrides = assignments.players.some(player => {
+        const override = overrides[player.tag?.toUpperCase()];
+        return override === "removed" || clanByKey.has(override);
+    });
+
+    if (!hasActiveOverrides) {
+        return {
+            clans: assignments.clans,
+            players: assignments.players.map(player => ({
+                ...player,
+                modelAssignedCwlClan: player.assignedCwlClan,
+                lineupOverride: null
+            }))
+        };
+    }
+
+    for (const player of assignments.players) {
+        const normalizedTag = player.tag?.toUpperCase();
+        const override = overrides[normalizedTag] || null;
+        const modelAssignedCwlClan = player.assignedCwlClan;
+        const updatedPlayer = {
+            ...player,
+            modelAssignedCwlClan,
+            lineupOverride: override,
+            assignedCwlClan: null
+        };
+
+        if (override === "removed") {
+            updatedPlayer.assignmentReason = "Manually removed from CWL lineups";
+            continue;
+        }
+
+        const forcedClan = clanByKey.get(override);
+
+        if (forcedClan) {
+            updatedPlayer.assignedCwlClan = forcedClan.name;
+            updatedPlayer.assignmentReason = `Manually assigned to ${forcedClan.name}`;
+            forcedClan.members.push(updatedPlayer);
+            continue;
+        }
+
+        automaticPlayers.push(updatedPlayer);
+    }
+
+    let playerIndex = 0;
+    const leagueGroups = [];
+
+    for (const clan of clans) {
+        const lastGroup = leagueGroups[leagueGroups.length - 1];
+
+        if (lastGroup && lastGroup[0].leagueRank === clan.leagueRank) {
+            lastGroup.push(clan);
+        } else {
+            leagueGroups.push([clan]);
+        }
+    }
+
+    for (const group of leagueGroups) {
+        let groupHasRoom = true;
+
+        while (playerIndex < automaticPlayers.length && groupHasRoom) {
+            groupHasRoom = false;
+
+            for (const clan of group) {
+                if (playerIndex >= automaticPlayers.length) break;
+                if (clan.members.length >= clan.targetSize) continue;
+
+                const player = automaticPlayers[playerIndex++];
+                player.assignedCwlClan = clan.name;
+
+                if (player.modelAssignedCwlClan !== clan.name) {
+                    player.assignmentReason = "League-aware placement after manual overrides";
+                }
+
+                clan.members.push(player);
+                groupHasRoom = true;
+            }
+        }
+    }
+
+    const playersByTag = new Map(
+        clans.flatMap(clan => clan.members).map(player => [player.tag, player])
+    );
+
+    return {
+        clans,
+        players: assignments.players.map(original => {
+            const assigned = playersByTag.get(original.tag);
+
+            if (assigned) return assigned;
+
+            const override = overrides[original.tag?.toUpperCase()] || null;
+
+            return {
+                ...original,
+                modelAssignedCwlClan: original.assignedCwlClan,
+                lineupOverride: override,
+                assignedCwlClan: null,
+                assignmentReason: override === "removed"
+                    ? "Manually removed from CWL lineups"
+                    : original.assignmentReason
+            };
+        })
+    };
+}
+
+function addOverflowClan(assignments, overflowClan) {
+    if (!overflowClan) return assignments;
+
+    const overflowTarget = {
+        ...overflowClan,
+        leagueName: "Overflow CWL clan",
+        leagueRank: -1,
+        format: null,
+        targetSize: Infinity,
+        isOverflow: true,
+        members: []
+    };
+
+    for (const player of assignments.players) {
+        if (player.assignedCwlClan) continue;
+
+        player.assignedCwlClan = overflowTarget.name;
+        player.assignmentReason = "Assigned to the overflow CWL clan";
+        overflowTarget.members.push(player);
+    }
+
+    return {
+        players: assignments.players,
+        clans: [...assignments.clans, overflowTarget]
+    };
+}
+
+function buildCwlLineupHelper(
+    clansWithMembers = [],
+    regularWarStats = [],
+    formats = {},
+    cwlWarStats = [],
+    overrides = {},
+    overflowClan = null
+) {
     const clanTargets = buildClanTargets(clansWithMembers, formats);
-    const assignments = assignPlayersToCwlClans(scoredPlayers, clanTargets);
+    const regularPlayers = buildScoredPlayers(clansWithMembers, regularWarStats, 5);
+    const cwlPlayers = buildScoredPlayers(clansWithMembers, cwlWarStats, 3);
+    const regularAssignments = getAssignmentMap(regularPlayers, clanTargets);
+    const cwlAssignments = getAssignmentMap(cwlPlayers, clanTargets);
+    const consensusPlayers = buildConsensusPlayers(
+        regularPlayers,
+        cwlPlayers,
+        regularAssignments,
+        cwlAssignments
+    );
+    const consensusAssignments = assignConsensusPlayers(consensusPlayers, clanTargets);
+    const assignmentsWithOverflow = addOverflowClan(
+        consensusAssignments,
+        overflowClan
+    );
+    const assignments = applyLineupOverrides(assignmentsWithOverflow, overrides);
 
     return {
         players: assignments.players,
