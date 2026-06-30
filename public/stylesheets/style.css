@@ -59,6 +59,50 @@ body {
   transition: all 0.2s ease;
 }
 
+.admin-launcher-card .card-body {
+  min-height: 250px;
+  padding: 1.5rem;
+}
+
+.admin-launcher-icon {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.admin-launcher-link {
+  color: var(--fw-teal);
+  font-weight: 700;
+}
+
+.admin-login-wrap {
+  max-width: 520px;
+}
+
+.admin-login-wrap .form-control {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--fw-white);
+}
+
+.admin-login-wrap .form-select {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--fw-white);
+}
+
+.admin-login-wrap .form-select option,
+.admin-login-wrap .form-select optgroup {
+  background: var(--fw-card);
+  color: var(--fw-white);
+}
+
+.admin-login-wrap .form-control:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--fw-teal);
+  box-shadow: 0 0 0 0.2rem rgba(32, 230, 195, 0.16);
+  color: var(--fw-white);
+}
+
 .clan-badge {
   width: 70px;
   height: 70px;
@@ -140,6 +184,24 @@ body {
 
 .admin-lineup-table {
   max-height: 620px;
+}
+
+.admin-missed-attacks-table {
+  max-height: 520px;
+}
+
+.admin-participation-table {
+  max-height: 520px;
+}
+
+.missed-attacks-summary {
+  color: var(--fw-teal);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cwl-roster-order {
+  width: auto;
 }
 
 .scorecard {

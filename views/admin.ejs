@@ -4,7 +4,8 @@
 <main class="container py-4">
   <div class="d-flex justify-content-between align-items-center gap-3 mb-4 flex-wrap">
     <div>
-      <h1 class="page-title mb-1">Admin</h1>
+      <a href="/admin" class="text-decoration-none text-muted small">← Admin tools</a>
+      <h1 class="page-title mb-1">CWL Lineup Helper</h1>
       <p class="text-muted mb-0">
         CWL lineup helper comparing 60-day regular-war performance with the most recent CWL season.
       </p>
@@ -13,7 +14,7 @@
 
   <div class="card clan-card mb-4">
     <div class="card-body">
-      <form method="GET" action="/admin">
+      <form method="GET" action="/admin/lineup">
         <div class="row g-3 align-items-end">
           <% clans.forEach(clan => { %>
           <div class="col-12 col-md-4">
@@ -53,6 +54,176 @@
     </div>
   </div>
 
+  <% if (showReports) { %>
+  <div class="card clan-card mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+        <div>
+          <h4 class="mb-1">Missed Attacks Report</h4>
+          <p class="text-muted small mb-0">
+            Regular wars use the selected lookback; CWL includes each clan's last two available seasons.
+            Current family members are ranked by total missed attacks.
+          </p>
+        </div>
+        <form method="GET" action="/admin" class="d-flex align-items-end gap-2 flex-wrap">
+          <% clans.forEach(clan => { %>
+          <input type="hidden" name="<%= clan.key %>Format" value="<%= formats[clan.key] %>">
+          <% }) %>
+          <input type="hidden" name="inactiveDays" value="<%= inactiveDays %>">
+          <div>
+            <label class="form-label small mb-1" for="missedDays">Lookback</label>
+            <select class="form-select form-select-sm" id="missedDays" name="missedDays">
+              <% [7, 14, 30, 60].forEach(days => { %>
+              <option value="<%= days %>" <%= missedDays === days ? "selected" : "" %>>Last <%= days %> days</option>
+              <% }) %>
+            </select>
+          </div>
+          <button class="btn btn-fw-primary btn-sm" type="submit">Run Report</button>
+        </form>
+      </div>
+
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        <span class="cwl-pill"><%= missedAttackReport.totalMissedAttacks %> missed attacks</span>
+        <span class="cwl-pill"><%= missedAttackReport.affectedPlayers %> players</span>
+      </div>
+
+      <% if (missedAttackReport.players.length === 0) { %>
+      <p class="text-muted mb-0">No missed attacks found in the last <%= missedDays %> days.</p>
+      <% } else { %>
+      <div class="table-responsive admin-missed-attacks-table">
+        <table class="table table-dark table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>TH</th>
+              <th>Missed</th>
+              <th>Wars</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% missedAttackReport.players.forEach(player => { %>
+            <tr>
+              <td>
+                <div class="fw-bold"><%= player.playerName %></div>
+                <div class="text-muted small"><%= player.playerTag %></div>
+              </td>
+              <td><%= player.townhallLevel %></td>
+              <td><strong class="text-warning"><%= player.missedAttacks %></strong></td>
+              <td><%= player.wars.length %></td>
+              <td>
+                <details>
+                  <summary class="missed-attacks-summary">View wars</summary>
+                  <div class="mt-2 d-grid gap-2">
+                    <% player.wars.forEach(war => { %>
+                    <div class="small">
+                      <strong><%= new Date(war.warEndTime.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6")).toLocaleDateString("en-US", { timeZone: "UTC" }) %></strong>
+                      · <%= war.warType === "cwl" ? `CWL ${war.cwlSeason}` : "Regular" %>
+                      · <%= war.clanName || war.clanKey %> vs <%= war.opponentClanName || "Unknown opponent" %>
+                      · <%= war.attacksUsed %>/<%= war.attacksPerMember %> used
+                    </div>
+                    <% }) %>
+                  </div>
+                </details>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="card clan-card mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+        <div>
+          <h4 class="mb-1">War Participation Report</h4>
+          <p class="text-muted small mb-0">
+            Current members whose last regular-war or CWL roster appearance is older than the selected threshold.
+          </p>
+        </div>
+        <form method="GET" action="/admin" class="d-flex align-items-end gap-2 flex-wrap">
+          <% clans.forEach(clan => { %>
+          <input type="hidden" name="<%= clan.key %>Format" value="<%= formats[clan.key] %>">
+          <% }) %>
+          <input type="hidden" name="missedDays" value="<%= missedDays %>">
+          <div>
+            <label class="form-label small mb-1" for="inactiveDays">Inactive for</label>
+            <select class="form-select form-select-sm" id="inactiveDays" name="inactiveDays">
+              <% [7, 14, 30, 60].forEach(days => { %>
+              <option value="<%= days %>" <%= inactiveDays === days ? "selected" : "" %>><%= days %>+ days</option>
+              <% }) %>
+            </select>
+          </div>
+          <button class="btn btn-fw-primary btn-sm" type="submit">Run Report</button>
+        </form>
+      </div>
+
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        <span class="cwl-pill"><%= participationReport.players.length %> inactive players</span>
+        <% if (participationReport.neverSeenCount > 0) { %>
+        <span class="cwl-pill"><%= participationReport.neverSeenCount %> not found in history</span>
+        <% } %>
+      </div>
+
+      <% if (participationReport.players.length === 0) { %>
+      <p class="text-muted mb-0">Every current member has appeared in war within the last <%= inactiveDays %> days.</p>
+      <% } else { %>
+      <div class="table-responsive admin-participation-table">
+        <table class="table table-dark table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Current clan</th>
+              <th>TH</th>
+              <th>Last war</th>
+              <th>Inactive</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% participationReport.players.forEach(player => { %>
+            <tr>
+              <td>
+                <div class="fw-bold"><%= player.playerName %></div>
+                <div class="text-muted small"><%= player.playerTag %></div>
+              </td>
+              <td><%= player.currentClanName %></td>
+              <td><%= player.townhallLevel %></td>
+              <td>
+                <% if (player.lastParticipation) { %>
+                <div>
+                  <%= new Date(player.lastParticipation.warEndTime.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6")).toLocaleDateString("en-US", { timeZone: "UTC" }) %>
+                </div>
+                <div class="text-muted small">
+                  <%= player.lastParticipation.warType === "cwl" ? `CWL ${player.lastParticipation.cwlSeason}` : "Regular" %>
+                  · <%= player.lastParticipation.clanName || "Family clan" %> vs <%= player.lastParticipation.opponentClanName || "Unknown opponent" %>
+                </div>
+                <% } else { %>
+                <span class="text-warning">No appearance in available history</span>
+                <% } %>
+              </td>
+              <td>
+                <% if (player.daysSince === null) { %>
+                <span class="text-warning">Unknown</span>
+                <% } else { %>
+                <strong><%= player.daysSince %> days</strong>
+                <% } %>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-muted small mt-3 mb-0">
+        Available history covers up to 50 regular wars per clan plus the last two CWLs.
+      </p>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
   <div class="row g-4 mb-4">
     <% lineupHelper.clans.forEach(cwlClan => { %>
     <div class="col-12 col-xl-4">
@@ -70,6 +241,17 @@
               </span>
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+              <label class="visually-hidden" for="rosterOrder-<%= cwlClan.key %>">
+                Order <%= cwlClan.name %> roster
+              </label>
+              <select
+                class="form-select form-select-sm cwl-roster-order js-cwl-roster-order"
+                id="rosterOrder-<%= cwlClan.key %>"
+                aria-label="Order <%= cwlClan.name %> roster"
+              >
+                <option value="rank">Order by rank</option>
+                <option value="townHall">Order by TH level</option>
+              </select>
               <span class="cwl-pill">
                 <%= cwlClan.isOverflow ? cwlClan.members.length : `${cwlClan.members.length}/${cwlClan.targetSize}` %>
               </span>
@@ -108,6 +290,7 @@
                   data-name="<%= player.name %>"
                   data-tag="<%= player.tag %>"
                   data-rank="#<%= player.rank %>"
+                  data-rank-value="<%= player.rank %>"
                   data-th="<%= player.townHallLevel %>"
                   data-home="<%= player.homeClan %>"
                   data-assigned="<%= player.assignedCwlClan || 'Unassigned' %>"

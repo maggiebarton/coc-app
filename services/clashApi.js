@@ -57,6 +57,16 @@ async function getClanWarLog(clanTag, limit = 10) {
     return response.data;
 }
 
+async function verifyPlayerToken(playerTag, token) {
+    const response = await axios.post(
+        `${BASE_URL}/players/${encodeTag(playerTag)}/verifytoken`,
+        { token },
+        { headers: getHeaders() }
+    );
+
+    return response.data;
+}
+
 //GET season start/end
 async function getCurrentGoldPassSeason() {
     const response = await axios.get(
@@ -85,6 +95,7 @@ module.exports = {
     getClanInfo,
     getClanWarLog,
     getCurrentWar,
+    verifyPlayerToken,
     getCurrentGoldPassSeason,
     getCurrentCwlLeagueGroup
 };

@@ -1,0 +1,66 @@
+<%- include("partials/header", { title }) %>
+<%- include("partials/navbar") %>
+
+<main class="container py-4">
+  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-4">
+    <div>
+      <a href="/admin" class="text-decoration-none text-muted small">← Admin tools</a>
+      <h1 class="page-title mb-1">War Participation Report</h1>
+      <p class="text-muted mb-0">Current members whose last regular-war or CWL roster appearance is older than the selected threshold.</p>
+    </div>
+    <form method="GET" action="/admin/participation" class="d-flex align-items-end gap-2">
+      <div>
+        <label class="form-label small mb-1" for="days">Inactive for</label>
+        <select class="form-select form-select-sm" id="days" name="days">
+          <% [7, 14, 30, 60].forEach(option => { %>
+          <option value="<%= option %>" <%= days === option ? "selected" : "" %>><%= option %>+ days</option>
+          <% }) %>
+        </select>
+      </div>
+      <button class="btn btn-fw-primary btn-sm" type="submit">Run Report</button>
+    </form>
+  </div>
+
+  <div class="card clan-card">
+    <div class="card-body">
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        <span class="cwl-pill"><%= report.players.length %> inactive players</span>
+        <% if (report.neverSeenCount > 0) { %><span class="cwl-pill"><%= report.neverSeenCount %> not found in history</span><% } %>
+      </div>
+
+      <% if (report.players.length === 0) { %>
+      <p class="text-muted mb-0">Every current member has appeared in war within the last <%= days %> days.</p>
+      <% } else { %>
+      <div class="table-responsive admin-participation-table">
+        <table class="table table-dark table-hover align-middle mb-0">
+          <thead><tr><th>Player</th><th>Current clan</th><th>TH</th><th>Last war</th><th>Inactive</th></tr></thead>
+          <tbody>
+            <% report.players.forEach(player => { %>
+            <tr>
+              <td><div class="fw-bold"><%= player.playerName %></div><div class="text-muted small"><%= player.playerTag %></div></td>
+              <td><%= player.currentClanName %></td>
+              <td><%= player.townhallLevel %></td>
+              <td>
+                <% if (player.lastParticipation) { %>
+                <div><%= new Date(player.lastParticipation.warEndTime.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6")).toLocaleDateString("en-US", { timeZone: "UTC" }) %></div>
+                <div class="text-muted small">
+                  <%= player.lastParticipation.warType === "cwl" ? `CWL ${player.lastParticipation.cwlSeason}` : "Regular" %>
+                  · <%= player.lastParticipation.clanName || "Family clan" %> vs <%= player.lastParticipation.opponentClanName || "Unknown opponent" %>
+                </div>
+                <% } else { %>
+                <span class="text-warning">No appearance in available history</span>
+                <% } %>
+              </td>
+              <td><% if (player.daysSince === null) { %><span class="text-warning">Unknown</span><% } else { %><strong><%= player.daysSince %> days</strong><% } %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-muted small mt-3 mb-0">Available history covers up to 50 regular wars per clan plus the last two CWLs.</p>
+      <% } %>
+    </div>
+  </div>
+</main>
+
+<%- include("partials/footer") %>

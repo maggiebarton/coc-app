@@ -1,0 +1,72 @@
+<%- include("partials/header", { title }) %>
+<%- include("partials/navbar") %>
+
+<main class="container py-5">
+  <div class="admin-login-wrap mx-auto">
+    <div class="text-center mb-4">
+      <h1 class="page-title mb-2">Admin Login</h1>
+      <p class="text-muted mb-0">For current family Leaders and Co-Leaders.</p>
+    </div>
+
+    <div class="card clan-card">
+      <div class="card-body p-4">
+        <% if (error) { %>
+        <div class="alert alert-danger" role="alert"><%= error %></div>
+        <% } %>
+
+        <% if (!authConfigured) { %>
+        <div class="alert alert-warning mb-0" role="alert">
+          Admin login needs an <code>ADMIN_COOKIE_SECRET</code> environment value before it can be used.
+        </div>
+        <% } else { %>
+        <form method="POST" action="/admin/login">
+          <input type="hidden" name="returnTo" value="<%= returnTo %>">
+          <div class="mb-3">
+            <label class="form-label" for="playerTag">Leader or Co-Leader</label>
+            <select
+              class="form-select"
+              id="playerTag"
+              name="playerTag"
+              autocomplete="username"
+              required
+            >
+              <option value="">Choose your account</option>
+              <% const clanNames = [...new Set(adminCandidates.map(candidate => candidate.clanName))]; %>
+              <% clanNames.forEach(clanName => { %>
+              <optgroup label="<%= clanName %>">
+                <% adminCandidates.filter(candidate => candidate.clanName === clanName).forEach(candidate => { %>
+                <option value="<%= candidate.playerTag %>" <%= candidate.playerTag === playerTag ? "selected" : "" %>>
+                  <%= candidate.playerName %> · <%= candidate.role === "leader" ? "Leader" : "Co-Leader" %>
+                </option>
+                <% }) %>
+              </optgroup>
+              <% }) %>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="token">In-game API token</label>
+            <input
+              class="form-control"
+              id="token"
+              name="token"
+              type="password"
+              autocomplete="current-password"
+              required
+            >
+            <div class="form-text text-muted">
+              In Clash of Clans, open Settings → More Settings → API Token. The token is only used for this verification.
+            </div>
+          </div>
+          <button class="btn btn-fw-primary w-100" type="submit">Verify and continue</button>
+        </form>
+        <% } %>
+      </div>
+    </div>
+
+    <p class="text-muted small text-center mt-3 mb-0">
+      Successful verification keeps this browser signed in for seven days.
+    </p>
+  </div>
+</main>
+
+<%- include("partials/footer") %>

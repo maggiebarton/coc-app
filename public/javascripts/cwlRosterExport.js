@@ -58,6 +58,30 @@
     }
   }
 
+  function orderRoster(card, orderBy) {
+    const body = card.querySelector(".js-cwl-roster tbody");
+    const rows = Array.from(body.querySelectorAll(".js-cwl-roster-player"));
+
+    rows.sort((first, second) => {
+      const rankDifference = Number(first.dataset.rankValue) - Number(second.dataset.rankValue);
+
+      if (orderBy === "townHall") {
+        const townHallDifference = Number(second.dataset.th) - Number(first.dataset.th);
+        return townHallDifference || rankDifference;
+      }
+
+      return rankDifference;
+    });
+
+    rows.forEach((row) => body.appendChild(row));
+  }
+
+  document.querySelectorAll(".js-cwl-roster-order").forEach((select) => {
+    select.addEventListener("change", () => {
+      orderRoster(select.closest(".clan-card"), select.value);
+    });
+  });
+
   document.querySelectorAll(".js-copy-cwl-roster").forEach((button) => {
     button.addEventListener("click", async () => {
       const originalLabel = button.textContent.trim();

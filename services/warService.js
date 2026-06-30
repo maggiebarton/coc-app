@@ -135,7 +135,7 @@ function mapWarsToAttackRows(wars = [], clanTag, clanKey = null) {
 }
 
 function summarizeWarPlayerStats(war, clanTag, clanKey = null) {
-    const { clanSide } = getWarSides(war, clanTag);
+    const { clanSide, opponentSide } = getWarSides(war, clanTag);
 
     const attackRows = mapWarToAttackRows(war, clanTag, clanKey);
     const attacksByPlayer = new Map();
@@ -161,6 +161,10 @@ function summarizeWarPlayerStats(war, clanTag, clanKey = null) {
         return {
             clanKey,
             warEndTime: war.endTime,
+            warType: war.attacksPerMember === 1 ? "cwl" : "regular",
+            attacksPerMember,
+            clanName: clanSide?.name,
+            opponentClanName: opponentSide?.name,
 
             playerTag: member.tag,
             playerName: member.name,
@@ -270,11 +274,133 @@ function combinePlayerStats(playerStats = []) {
     }));
 }
 
+function buildMissedAttacksReport(playerStats = [], days = 30, currentMemberTags = null) {
+    const cutoffDate = new Date();
+    cutoffDate.setUTCDate(cutoffDate.getUTCDate() - days);
+    const players = new Map();
+    const normalizedCurrentMemberTags = currentMemberTags
+        ? new Set([...currentMemberTags].map(normalizeTag))
+        : null;
+
+    for (const row of playerStats) {
+        const warDate = parseClashDate(row.warEndTime);
+        if (
+            (normalizedCurrentMemberTags && !normalizedCurrentMemberTags.has(normalizeTag(row.playerTag))) ||
+            !row.missedAttacks ||
+            !warDate ||
+            Number.isNaN(warDate.getTime()) ||
+            (row.warType !== "cwl" && warDate < cutoffDate)
+        ) {
+            continue;
+        }
+
+        if (!players.has(row.playerTag)) {
+            players.set(row.playerTag, {
+                playerTag: row.playerTag,
+                playerName: row.playerName,
+                townhallLevel: row.townhallLevel,
+                missedAttacks: 0,
+                wars: []
+            });
+        }
+
+        const player = players.get(row.playerTag);
+        player.missedAttacks += row.missedAttacks;
+        player.townhallLevel = Math.max(player.townhallLevel || 0, row.townhallLevel || 0);
+        player.wars.push({
+            warEndTime: row.warEndTime,
+            clanKey: row.clanKey,
+            clanName: row.clanName,
+            opponentClanName: row.opponentClanName,
+            warType: row.warType,
+            cwlSeason: row.cwlSeason || null,
+            attacksPerMember: row.attacksPerMember,
+            attacksUsed: row.attacksUsed,
+            missedAttacks: row.missedAttacks
+        });
+    }
+
+    const reportPlayers = [...players.values()]
+        .map(player => ({
+            ...player,
+            wars: player.wars.sort((a, b) => (
+                (parseClashDate(b.warEndTime)?.getTime() || 0) -
+                (parseClashDate(a.warEndTime)?.getTime() || 0)
+            ))
+        }))
+        .sort((a, b) => (
+            b.missedAttacks - a.missedAttacks ||
+            b.wars.length - a.wars.length ||
+            a.playerName.localeCompare(b.playerName)
+        ));
+
+    return {
+        days,
+        players: reportPlayers,
+        totalMissedAttacks: reportPlayers.reduce((sum, player) => sum + player.missedAttacks, 0),
+        affectedPlayers: reportPlayers.length
+    };
+}
+
+function buildWarParticipationReport(clans = [], playerStats = [], inactiveDays = 14) {
+    const latestParticipationByTag = new Map();
+
+    for (const row of playerStats) {
+        const tag = normalizeTag(row.playerTag);
+        const warDate = parseClashDate(row.warEndTime);
+        if (!tag || !warDate || Number.isNaN(warDate.getTime())) continue;
+
+        const currentLatest = latestParticipationByTag.get(tag);
+        if (!currentLatest || warDate > currentLatest.warDate) {
+            latestParticipationByTag.set(tag, {
+                warDate,
+                warEndTime: row.warEndTime,
+                warType: row.warType,
+                cwlSeason: row.cwlSeason || null,
+                clanName: row.clanName,
+                opponentClanName: row.opponentClanName
+            });
+        }
+    }
+
+    const now = new Date();
+    const players = clans.flatMap(clan => (clan.members || []).map(member => {
+        const latest = latestParticipationByTag.get(normalizeTag(member.tag)) || null;
+        const daysSince = latest
+            ? Math.max(0, Math.floor((now.getTime() - latest.warDate.getTime()) / 86400000))
+            : null;
+
+        return {
+            playerTag: member.tag,
+            playerName: member.name,
+            townhallLevel: member.townHallLevel || member.townhallLevel || 0,
+            currentClanName: clan.name,
+            lastParticipation: latest,
+            daysSince
+        };
+    }))
+        .filter(player => player.daysSince === null || player.daysSince >= inactiveDays)
+        .sort((a, b) => {
+            if (a.daysSince === null && b.daysSince !== null) return -1;
+            if (a.daysSince !== null && b.daysSince === null) return 1;
+            return (b.daysSince || 0) - (a.daysSince || 0) ||
+                a.playerName.localeCompare(b.playerName);
+        });
+
+    return {
+        inactiveDays,
+        players,
+        neverSeenCount: players.filter(player => player.daysSince === null).length
+    };
+}
+
 module.exports = {
     mapWarToAttackRows,
     mapWarsToAttackRows,
     summarizeWarPlayerStats,
     combinePlayerStats,
+    buildMissedAttacksReport,
+    buildWarParticipationReport,
     getRegularWars,
     getCurrentMonthRegularWars,
     getRollingRegularWars

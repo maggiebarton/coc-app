@@ -1,0 +1,71 @@
+<%- include("partials/header", { title }) %>
+<%- include("partials/navbar") %>
+
+<main class="container py-4">
+  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-4">
+    <div>
+      <a href="/admin" class="text-decoration-none text-muted small">← Admin tools</a>
+      <h1 class="page-title mb-1">Missed Attacks Report</h1>
+      <p class="text-muted mb-0">
+        Regular wars use the selected lookback; CWL includes each clan's last two available seasons.
+      </p>
+    </div>
+    <form method="GET" action="/admin/missed-attacks" class="d-flex align-items-end gap-2">
+      <div>
+        <label class="form-label small mb-1" for="days">Lookback</label>
+        <select class="form-select form-select-sm" id="days" name="days">
+          <% [7, 14, 30, 60].forEach(option => { %>
+          <option value="<%= option %>" <%= days === option ? "selected" : "" %>>Last <%= option %> days</option>
+          <% }) %>
+        </select>
+      </div>
+      <button class="btn btn-fw-primary btn-sm" type="submit">Run Report</button>
+    </form>
+  </div>
+
+  <div class="card clan-card">
+    <div class="card-body">
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        <span class="cwl-pill"><%= report.totalMissedAttacks %> missed attacks</span>
+        <span class="cwl-pill"><%= report.affectedPlayers %> current players</span>
+      </div>
+
+      <% if (report.players.length === 0) { %>
+      <p class="text-muted mb-0">No missed attacks found for current members.</p>
+      <% } else { %>
+      <div class="table-responsive admin-missed-attacks-table">
+        <table class="table table-dark table-hover align-middle mb-0">
+          <thead><tr><th>Player</th><th>TH</th><th>Missed</th><th>Wars</th><th>Details</th></tr></thead>
+          <tbody>
+            <% report.players.forEach(player => { %>
+            <tr>
+              <td><div class="fw-bold"><%= player.playerName %></div><div class="text-muted small"><%= player.playerTag %></div></td>
+              <td><%= player.townhallLevel %></td>
+              <td><strong class="text-warning"><%= player.missedAttacks %></strong></td>
+              <td><%= player.wars.length %></td>
+              <td>
+                <details>
+                  <summary class="missed-attacks-summary">View wars</summary>
+                  <div class="mt-2 d-grid gap-2">
+                    <% player.wars.forEach(war => { %>
+                    <div class="small">
+                      <strong><%= new Date(war.warEndTime.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6")).toLocaleDateString("en-US", { timeZone: "UTC" }) %></strong>
+                      · <%= war.warType === "cwl" ? `CWL ${war.cwlSeason}` : "Regular" %>
+                      · <%= war.clanName || war.clanKey %> vs <%= war.opponentClanName || "Unknown opponent" %>
+                      · <%= war.attacksUsed %>/<%= war.attacksPerMember %> used
+                    </div>
+                    <% }) %>
+                  </div>
+                </details>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <% } %>
+    </div>
+  </div>
+</main>
+
+<%- include("partials/footer") %>
