@@ -1,5 +1,6 @@
 <%- include("partials/header", { title }) %>
 <%- include("partials/navbar") %>
+<% const overflowRoster = lineupHelper.clans.find(clan => clan.isOverflow); %>
 
 <main class="container py-4">
   <div class="d-flex justify-content-between align-items-center gap-3 mb-4 flex-wrap">
@@ -29,11 +30,60 @@
               <option value="15" <%= formats[clan.key] === "15" ? "selected" : "" %>>15v15 roster of 20</option>
               <option value="30" <%= formats[clan.key] === "30" ? "selected" : "" %>>30v30 roster of 35</option>
             </select>
+            <label class="form-label small mb-1 mt-2" for="<%= clan.key %>RosterSize">
+              Exact roster size <span class="text-muted">(optional)</span>
+            </label>
+            <input
+              id="<%= clan.key %>RosterSize"
+              name="<%= clan.key %>RosterSize"
+              class="form-control form-control-sm"
+              type="number"
+              min="1"
+              max="50"
+              step="1"
+              value="<%= rosterSizes[clan.key] || '' %>"
+              placeholder="<%= formats[clan.key] === '30' ? '35' : '20' %>"
+            >
             <div class="text-muted small mt-1">
-              <%= clan.clanInfo?.warLeague?.name || "No CWL League" %>
+              <%= clan.clanInfo?.warLeague?.name || "No CWL League" %> · blank uses the format default
             </div>
           </div>
           <% }) %>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label mb-1" for="<%= overflowRoster?.key %>RosterSize">
+              <%= overflowRoster?.name || "Overflow" %>
+            </label>
+            <input
+              id="<%= overflowRoster?.key %>RosterSize"
+              name="<%= overflowRoster?.key %>RosterSize"
+              class="form-control form-control-sm"
+              type="number"
+              min="1"
+              max="50"
+              step="1"
+              value="<%= rosterSizes[overflowRoster?.key] || '' %>"
+              placeholder="35"
+            >
+            <div class="text-muted small mt-1">
+              Overflow roster · blank uses the default of 35
+            </div>
+          </div>
+
+          <div class="col-12 col-md-5">
+            <label class="form-label mb-1" for="lineupPreset">Automatic lineup preset</label>
+            <select id="lineupPreset" name="lineupPreset" class="form-select form-select-sm">
+              <option value="standard" <%= lineupPreset === "standard" ? "selected" : "" %>>
+                Standard scoring
+              </option>
+              <option value="exclude-missed-attacks" <%= lineupPreset === "exclude-missed-attacks" ? "selected" : "" %>>
+                Exclude anyone with missed attacks
+              </option>
+            </select>
+            <div class="text-muted small mt-1">
+              Checks both the 60-day regular-war sample and most recent CWL sample.
+            </div>
+          </div>
 
           <div class="col-12 d-flex gap-2 flex-wrap">
             <button class="btn btn-fw-primary btn-sm" type="submit">
@@ -68,7 +118,14 @@
         <form method="GET" action="/admin" class="d-flex align-items-end gap-2 flex-wrap">
           <% clans.forEach(clan => { %>
           <input type="hidden" name="<%= clan.key %>Format" value="<%= formats[clan.key] %>">
+          <% if (rosterSizes[clan.key]) { %>
+          <input type="hidden" name="<%= clan.key %>RosterSize" value="<%= rosterSizes[clan.key] %>">
+          <% } %>
           <% }) %>
+          <% if (overflowRoster && rosterSizes[overflowRoster.key]) { %>
+          <input type="hidden" name="<%= overflowRoster.key %>RosterSize" value="<%= rosterSizes[overflowRoster.key] %>">
+          <% } %>
+          <input type="hidden" name="lineupPreset" value="<%= lineupPreset %>">
           <input type="hidden" name="inactiveDays" value="<%= inactiveDays %>">
           <div>
             <label class="form-label small mb-1" for="missedDays">Lookback</label>
@@ -234,9 +291,9 @@
               <h4 class="mb-0"><%= cwlClan.name %></h4>
               <span class="text-muted small js-cwl-roster-meta">
                 <% if (cwlClan.isOverflow) { %>
-                  Overflow roster · <%= cwlClan.tag %>
+                  Overflow roster · <%= cwlClan.tag %><%= cwlClan.customTargetSize ? " · custom size" : "" %>
                 <% } else { %>
-                  <%= cwlClan.leagueName %> · <%= cwlClan.format %>v<%= cwlClan.format %>
+                  <%= cwlClan.leagueName %> · <%= cwlClan.format %>v<%= cwlClan.format %><%= cwlClan.customTargetSize ? " · custom size" : "" %>
                 <% } %>
               </span>
             </div>
@@ -253,7 +310,7 @@
                 <option value="townHall">Order by TH level</option>
               </select>
               <span class="cwl-pill">
-                <%= cwlClan.isOverflow ? cwlClan.members.length : `${cwlClan.members.length}/${cwlClan.targetSize}` %>
+                <%= `${cwlClan.members.length}/${cwlClan.targetSize}` %>
               </span>
               <button
                 class="btn btn-outline-light btn-sm js-copy-cwl-roster"
@@ -342,10 +399,20 @@
           <h4 class="mb-0">Ranked Player Pool</h4>
           <span class="text-muted small"><%= lineupHelper.players.length %> current members</span>
         </div>
+        <div class="d-flex align-items-center gap-2">
+          <label class="text-muted small text-nowrap" for="rankedPlayerPoolSort">Sort by</label>
+          <select class="form-select form-select-sm" id="rankedPlayerPoolSort">
+            <option value="rank">Overall rank</option>
+            <option value="reg-rank">Reg rank</option>
+            <option value="cwl-rank">CWL rank</option>
+            <option value="th">TH (high to low)</option>
+            <option value="assigned">Assigned (A–Z)</option>
+          </select>
+        </div>
       </div>
 
       <div class="table-responsive">
-        <table class="table table-dark table-hover align-middle mb-0">
+        <table class="table table-dark table-hover align-middle mb-0" id="rankedPlayerPoolTable">
           <thead>
             <tr>
               <th>Rank</th>
@@ -377,12 +444,15 @@
               data-name="<%= player.name %>"
               data-tag="<%= player.tag %>"
               data-rank="#<%= player.rank %>"
+              data-rank-value="<%= player.rank %>"
               data-th="<%= player.townHallLevel %>"
               data-home="<%= player.homeClan %>"
               data-assigned="<%= player.assignedCwlClan || 'Unassigned' %>"
               data-override="<%= player.lineupOverride || 'automatic' %>"
               data-reg-rank="#<%= player.regularRank %>"
+              data-reg-rank-value="<%= player.regularRank %>"
               data-cwl-rank="<%= player.cwlRank ? `#${player.cwlRank}` : 'No sample' %>"
+              data-cwl-rank-value="<%= player.cwlRank || '' %>"
               data-reg-clan="<%= player.regularProposedClan || 'Unassigned' %>"
               data-cwl-clan="<%= player.cwlProposedClan || 'Unassigned' %>"
               data-reg-wars="<%= player.warsParticipated %>"
@@ -455,7 +525,14 @@
           <input type="hidden" name="playerTag" id="playerOverrideTag">
           <% clans.forEach(clan => { %>
           <input type="hidden" name="<%= clan.key %>Format" value="<%= formats[clan.key] %>">
+          <% if (rosterSizes[clan.key]) { %>
+          <input type="hidden" name="<%= clan.key %>RosterSize" value="<%= rosterSizes[clan.key] %>">
+          <% } %>
           <% }) %>
+          <% if (overflowRoster && rosterSizes[overflowRoster.key]) { %>
+          <input type="hidden" name="<%= overflowRoster.key %>RosterSize" value="<%= rosterSizes[overflowRoster.key] %>">
+          <% } %>
+          <input type="hidden" name="lineupPreset" value="<%= lineupPreset %>">
           <label class="form-label" for="playerOverrideDestination">Manual lineup override</label>
           <div class="d-flex gap-2 flex-wrap">
             <select class="form-select" name="destination" id="playerOverrideDestination">
@@ -478,4 +555,5 @@
 
 <script src="/javascripts/cwlRosterExport.js"></script>
 <script src="/javascripts/adminPlayerModal.js"></script>
+<script src="/javascripts/rankedPlayerPoolSort.js"></script>
 <%- include("partials/footer") %>

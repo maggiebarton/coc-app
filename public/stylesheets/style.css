@@ -273,6 +273,47 @@ body {
   min-width: 150px;
 }
 
+.cwl-player-search {
+  width: min(100%, 280px);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--fw-white);
+}
+
+.cwl-clan-filter {
+  width: min(100%, 210px);
+}
+
+.cwl-player-search:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--fw-teal);
+  box-shadow: 0 0 0 0.2rem rgba(32, 230, 195, 0.16);
+  color: var(--fw-white);
+}
+
+.cwl-player-search::placeholder {
+  color: var(--fw-muted);
+}
+
+.admin-cwl-debrief-table {
+  max-height: 680px;
+}
+
+.admin-cwl-debrief-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.cwl-clan-debrief-card {
+  cursor: pointer;
+}
+
+.cwl-clan-debrief-card:focus-visible {
+  outline: 2px solid var(--fw-teal);
+  outline-offset: 3px;
+}
+
 .cwl-pill,
 .cwl-result {
   display: inline-flex;

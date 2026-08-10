@@ -1,0 +1,192 @@
+<%- include("partials/header", { title }) %>
+<%- include("partials/navbar") %>
+
+<main class="container py-4">
+  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-4">
+    <div>
+      <a href="/admin" class="text-decoration-none text-muted small">← Admin tools</a>
+      <h1 class="page-title mb-1">CWL Debrief</h1>
+      <p class="text-muted mb-0">Family-wide results based on the clan each player represented during CWL.</p>
+    </div>
+    <form method="GET" action="/admin/cwl-debrief" class="d-flex align-items-end gap-2">
+      <div>
+        <label for="season" class="form-label small text-muted mb-1">CWL season</label>
+        <select id="season" name="season" class="form-select cwl-season-select" onchange="this.form.submit()">
+          <% seasonOptions.forEach((option) => { %>
+            <option value="<%= option.season %>" <%= option.season === selectedSeason ? "selected" : "" %>><%= option.label %></option>
+          <% }) %>
+        </select>
+      </div>
+    </form>
+  </div>
+
+  <% if (!selectedSeason || report.clans.length === 0) { %>
+    <div class="card clan-card"><div class="card-body py-5 text-center">
+      <h2 class="h4">No CWL data found</h2>
+      <p class="text-muted mb-0">Try another season. Overflow only appears in seasons where it participated.</p>
+    </div></div>
+  <% } else { %>
+    <div class="row g-3 mb-4">
+      <% [
+        ["Family record", `${report.overview.wins}-${report.overview.losses}-${report.overview.ties}`],
+        ["CWL clans", report.overview.clans],
+        ["Players used", report.overview.players],
+        ["Avg stars", report.overview.avgStars],
+        ["Avg destruction", `${report.overview.avgDestruction}%`],
+        ["Triples", report.overview.triples],
+        ["Missed attacks", report.overview.missedAttacks]
+      ].forEach(([label, value]) => { %>
+        <div class="col-6 col-md-3 col-xl"><div class="stat-box h-100">
+          <div class="stat-value"><%= value %></div><div class="stat-label"><%= label %></div>
+        </div></div>
+      <% }) %>
+    </div>
+
+    <h2 class="h4 mb-3">Clan results</h2>
+    <div class="row g-3 mb-4">
+      <% report.clans.forEach((clan) => { %>
+        <div class="col-12 col-md-6 col-xl-3"><div class="card clan-card cwl-clan-debrief-card h-100" role="button" tabindex="0" data-bs-toggle="modal" data-bs-target="#cwlClanModal-<%= clan.key %>" aria-label="Open <%= clan.name %> CWL debrief"><div class="card-body">
+          <div class="d-flex justify-content-between gap-2 mb-3">
+            <div><h3 class="h5 mb-0"><%= clan.name %></h3><span class="text-muted small"><%= clan.leagueName || "CWL" %></span></div>
+            <% if (clan.place) { %><span class="cwl-pill">#<%= clan.place %> / <%= clan.groupSize %></span><% } %>
+          </div>
+          <div class="clan-meta-row"><span class="clan-meta-label">Record</span><span class="clan-meta-value"><%= clan.wins %>-<%= clan.losses %>-<%= clan.ties %></span></div>
+          <div class="clan-meta-row"><span class="clan-meta-label">War stars</span><span class="clan-meta-value"><%= clan.stars %></span></div>
+          <div class="clan-meta-row"><span class="clan-meta-label">Avg destruction</span><span class="clan-meta-value"><%= clan.averageDestruction %>%</span></div>
+          <div class="clan-meta-row"><span class="clan-meta-label">Missed attacks</span><span class="clan-meta-value"><%= clan.missedAttacks %></span></div>
+          <div class="admin-launcher-link small mt-3">View clan debrief →</div>
+        </div></div></div>
+      <% }) %>
+    </div>
+
+    <% report.clans.forEach((clan) => { %>
+      <div class="modal fade" id="cwlClanModal-<%= clan.key %>" tabindex="-1" aria-labelledby="cwlClanModalLabel-<%= clan.key %>" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content scorecard-modal">
+          <div class="modal-header border-secondary-subtle">
+            <div><h2 class="modal-title h4" id="cwlClanModalLabel-<%= clan.key %>"><%= clan.name %> CWL Debrief</h2><p class="text-muted small mb-0"><%= clan.leagueName || "CWL" %> · <%= selectedSeason %></p></div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3 mb-4">
+              <% [
+                ["Record", `${clan.wins}-${clan.losses}-${clan.ties}`],
+                ["Players", clan.players.length],
+                ["War stars", clan.stars],
+                ["Avg destruction", `${clan.averageDestruction}%`],
+                ["Attacks used", `${clan.attacksUsed}/${clan.possibleAttacks}`],
+                ["Missed", clan.missedAttacks]
+              ].forEach(([label, value]) => { %>
+                <div class="col-6 col-md-4 col-xl-2"><div class="stat-box h-100"><div class="stat-value"><%= value %></div><div class="stat-label"><%= label %></div></div></div>
+              <% }) %>
+            </div>
+
+            <div class="row g-3 mb-4">
+              <% [
+                ["🏆", "Best performers", clan.callouts.bestPerformers, p => `${p.avgStars}★ · ${p.avgDestruction}%`],
+                ["🚀", "Hit-up standouts", clan.callouts.hitUpStandouts, p => `${p.hitUpAvgStars}★ on ${p.hitUpAttacks}`],
+                ["🛠️", "Needs support", clan.callouts.biggestStrugglers, p => `${p.avgStars}★ · ${p.avgDestruction}%`]
+              ].forEach(([icon, heading, players, detail]) => { %>
+                <div class="col-12 col-lg-4"><div class="scorecard h-100">
+                  <h3 class="h6"><%= icon %> <%= heading %></h3>
+                  <% if (!players.length) { %><p class="text-muted small mb-0">Not enough qualifying attacks.</p><% } %>
+                  <% players.forEach((player, index) => { %>
+                    <div class="clan-meta-row"><span><strong><%= index + 1 %>. <%= player.playerName %></strong><br><small class="text-muted">TH<%= player.townhallLevel %></small></span><span class="clan-meta-value text-end"><%= detail(player) %></span></div>
+                  <% }) %>
+                </div></div>
+              <% }) %>
+            </div>
+
+            <h3 class="h5 mb-3">Player performance</h3>
+            <div class="table-responsive">
+              <table class="table table-dark table-hover align-middle mb-0">
+                <thead><tr><th>Player</th><th class="text-end">Used</th><th class="text-end">Avg ★</th><th class="text-end">Avg %</th><th class="text-end">Triples</th><th class="text-end">2+ ★</th><th class="text-end">Hit-ups</th><th class="text-end">Hit-up avg</th><th class="text-end">Missed</th></tr></thead>
+                <tbody><% clan.players.forEach((player) => { %>
+                  <tr><td><strong><%= player.playerName %></strong><br><small class="text-muted">TH<%= player.townhallLevel %> · <%= player.playerTag %></small></td>
+                    <td class="text-end"><%= player.attacksUsed %>/<%= player.wars %></td><td class="text-end fw-bold"><%= player.avgStars %></td><td class="text-end"><%= player.avgDestruction %>%</td>
+                    <td class="text-end"><%= player.triples %> <small class="text-muted">(<%= player.tripleRate %>%)</small></td><td class="text-end"><%= player.twoPlusRate %>%</td>
+                    <td class="text-end"><%= player.hitUpAttacks %></td><td class="text-end"><%= player.hitUpAttacks ? player.hitUpAvgStars : "—" %></td>
+                    <td class="text-end <%= player.missedAttacks ? "text-warning" : "" %>"><%= player.missedAttacks %></td></tr>
+                <% }) %></tbody>
+              </table>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    <% }) %>
+
+    <div class="row g-3 mb-4">
+      <% [
+        ["🏆", "Best performers", report.callouts.bestPerformers, p => `${p.avgStars}★ · ${p.avgDestruction}%`],
+        ["🚀", "Hit-up standouts", report.callouts.hitUpStandouts, p => `${p.hitUpAvgStars}★ on ${p.hitUpAttacks} hit-ups`],
+        ["🛠️", "Needs support", report.callouts.biggestStrugglers, p => `${p.avgStars}★ · ${p.avgDestruction}%`]
+      ].forEach(([icon, heading, players, detail]) => { %>
+        <div class="col-12 col-lg-4"><div class="card clan-card h-100"><div class="card-body">
+          <h2 class="h5"><%= icon %> <%= heading %></h2>
+          <% if (!players.length) { %><p class="text-muted small mb-0">Not enough qualifying attacks.</p><% } %>
+          <% players.forEach((player, index) => { %>
+            <div class="clan-meta-row"><span><strong><%= index + 1 %>. <%= player.playerName %></strong><br><small class="text-muted">TH<%= player.townhallLevel %> · <%= player.clanNames.join(" / ") %></small></span><span class="clan-meta-value text-end"><%= detail(player) %></span></div>
+          <% }) %>
+        </div></div></div>
+      <% }) %>
+    </div>
+
+    <div class="card clan-card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+          <div><h2 class="h4 mb-1">Player performance</h2><p class="text-muted small mb-0">Includes players who are no longer in a family clan. Best-performer rankings require 3+ attacks.</p></div>
+          <div class="d-flex gap-2 flex-wrap">
+            <select id="cwlClanFilter" class="form-select cwl-clan-filter" aria-label="Filter by CWL clan">
+              <option value="">All CWL clans</option>
+              <% report.clans.forEach((clan) => { %>
+                <option value="<%= clan.name.toLowerCase() %>"><%= clan.name %></option>
+              <% }) %>
+            </select>
+            <input id="playerSearch" class="form-control cwl-player-search" type="search" placeholder="Search player…" aria-label="Search players">
+          </div>
+        </div>
+        <div class="table-responsive admin-cwl-debrief-table">
+          <table class="table table-dark table-hover align-middle mb-0" id="cwlPlayerTable">
+            <thead><tr><th>Player</th><th>CWL clan</th><th class="text-end">Used</th><th class="text-end">Avg ★</th><th class="text-end">Avg %</th><th class="text-end">Triples</th><th class="text-end">2+ ★</th><th class="text-end">Hit-ups</th><th class="text-end">Hit-up avg</th><th class="text-end">Missed</th></tr></thead>
+            <tbody>
+              <% report.players.forEach((player) => { %>
+                <tr data-player-search="<%= `${player.playerName} ${player.playerTag}`.toLowerCase() %>" data-cwl-clans="<%= player.clanNames.map(name => name.toLowerCase()).join("|") %>">
+                  <td><strong><%= player.playerName %></strong><br><small class="text-muted">TH<%= player.townhallLevel %> · <%= player.playerTag %></small></td>
+                  <td><%= player.clanNames.join(" / ") %></td><td class="text-end"><%= player.attacksUsed %>/<%= player.wars %></td>
+                  <td class="text-end fw-bold"><%= player.avgStars %></td><td class="text-end"><%= player.avgDestruction %>%</td>
+                  <td class="text-end"><%= player.triples %> <small class="text-muted">(<%= player.tripleRate %>%)</small></td>
+                  <td class="text-end"><%= player.twoPlusRate %>%</td><td class="text-end"><%= player.hitUpAttacks %></td>
+                  <td class="text-end"><%= player.hitUpAttacks ? player.hitUpAvgStars : "—" %></td>
+                  <td class="text-end <%= player.missedAttacks ? "text-warning" : "" %>"><%= player.missedAttacks %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-muted small mt-3 mb-0">Hit-up means the defender was a higher Town Hall. “Needs support” is descriptive, not punitive: lowest average stars, then destruction, among everyone who made at least one attack.</p>
+      </div>
+    </div>
+  <% } %>
+</main>
+
+<script>
+  const filterCwlPlayers = () => {
+    const query = document.getElementById("playerSearch")?.value.trim().toLowerCase() || "";
+    const clan = document.getElementById("cwlClanFilter")?.value || "";
+    document.querySelectorAll("#cwlPlayerTable tbody tr").forEach((row) => {
+      const matchesSearch = row.dataset.playerSearch.includes(query);
+      const matchesClan = !clan || row.dataset.cwlClans.split("|").includes(clan);
+      row.hidden = !matchesSearch || !matchesClan;
+    });
+  };
+  document.getElementById("playerSearch")?.addEventListener("input", filterCwlPlayers);
+  document.getElementById("cwlClanFilter")?.addEventListener("change", filterCwlPlayers);
+  document.querySelectorAll(".cwl-clan-debrief-card").forEach((card) => {
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        bootstrap.Modal.getOrCreateInstance(document.querySelector(card.dataset.bsTarget)).show();
+      }
+    });
+  });
+</script>
+<%- include("partials/footer") %>

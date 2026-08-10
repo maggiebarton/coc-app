@@ -98,21 +98,24 @@ function getScoreComponents(player, minTh, maxTh, activityTarget = 5) {
 }
 
 function getFinalScores(components) {
+    // Lineups should reward proven offense and reliability more than the defensive
+    // value of a single Town Hall level. In particular, a strong, dependable TH17
+    // should be able to rank ahead of an underperforming TH18.
     const mainScore =
-        (0.20 * components.thLevelScore) +
+        (0.05 * components.thLevelScore) +
         (0.15 * components.activityScore) +
         (0.20 * components.attackUsageRate) +
-        (0.20 * components.avgStarsScore) +
-        (0.10 * components.avgDestructionScore) +
+        (0.30 * components.avgStarsScore) +
+        (0.15 * components.avgDestructionScore) +
         (0.10 * components.missPenalty) +
         (0.05 * components.thDistanceScore);
 
     const noThDifficultyScore =
-        (0.20 * components.thLevelScore) +
+        (0.05 * components.thLevelScore) +
         (0.15 * components.activityScore) +
         (0.20 * components.attackUsageRate) +
-        (0.225 * components.avgStarsScore) +
-        (0.125 * components.avgDestructionScore) +
+        (0.325 * components.avgStarsScore) +
+        (0.175 * components.avgDestructionScore) +
         (0.10 * components.missPenalty);
 
     const offenseOnlyScore =
@@ -229,17 +232,26 @@ function comparePlayers(a, b) {
     );
 }
 
-function buildClanTargets(clans = [], formats = {}) {
+function buildClanTargets(clans = [], formats = {}, rosterSizes = {}) {
     return clans
-        .map(clan => ({
-            key: clan.key,
-            name: clan.name,
-            leagueName: clan.clanInfo?.warLeague?.name || "Unranked",
-            leagueRank: getCwlLeagueRank(clan.clanInfo?.warLeague?.name),
-            format: String(formats[clan.key] || "15") === "30" ? "30" : "15",
-            targetSize: getRosterTarget(formats[clan.key] || "15"),
-            members: []
-        }))
+        .map(clan => {
+            const customTarget = Number.parseInt(rosterSizes[clan.key], 10);
+
+            return {
+                key: clan.key,
+                name: clan.name,
+                leagueName: clan.clanInfo?.warLeague?.name || "Unranked",
+                leagueRank: getCwlLeagueRank(clan.clanInfo?.warLeague?.name),
+                format: String(formats[clan.key] || "15") === "30" ? "30" : "15",
+                targetSize: Number.isInteger(customTarget) && customTarget >= 1
+                    ? customTarget
+                    : getRosterTarget(formats[clan.key] || "15"),
+                customTargetSize: Number.isInteger(customTarget) && customTarget >= 1
+                    ? customTarget
+                    : null,
+                members: []
+            };
+        })
         .sort((a, b) => {
             return (
                 b.leagueRank - a.leagueRank ||
@@ -457,6 +469,11 @@ function applyLineupOverrides(assignments, overrides = {}) {
             continue;
         }
 
+        if (updatedPlayer.automaticExclusionReason) {
+            updatedPlayer.assignmentReason = updatedPlayer.automaticExclusionReason;
+            continue;
+        }
+
         automaticPlayers.push(updatedPlayer);
     }
 
@@ -522,21 +539,28 @@ function applyLineupOverrides(assignments, overrides = {}) {
     };
 }
 
-function addOverflowClan(assignments, overflowClan) {
+function addOverflowClan(assignments, overflowClan, requestedTargetSize = null) {
     if (!overflowClan) return assignments;
 
+    const customTarget = Number.parseInt(requestedTargetSize, 10);
     const overflowTarget = {
         ...overflowClan,
         leagueName: "Overflow CWL clan",
         leagueRank: -1,
         format: null,
-        targetSize: Infinity,
+        targetSize: Number.isInteger(customTarget) && customTarget >= 1
+            ? customTarget
+            : 35,
+        customTargetSize: Number.isInteger(customTarget) && customTarget >= 1
+            ? customTarget
+            : null,
         isOverflow: true,
         members: []
     };
 
     for (const player of assignments.players) {
-        if (player.assignedCwlClan) continue;
+        if (player.assignedCwlClan || player.automaticExclusionReason) continue;
+        if (overflowTarget.members.length >= overflowTarget.targetSize) break;
 
         player.assignedCwlClan = overflowTarget.name;
         player.assignmentReason = "Assigned to the overflow CWL clan";
@@ -555,9 +579,14 @@ function buildCwlLineupHelper(
     formats = {},
     cwlWarStats = [],
     overrides = {},
-    overflowClan = null
+    overflowClan = null,
+    options = {}
 ) {
-    const clanTargets = buildClanTargets(clansWithMembers, formats);
+    const clanTargets = buildClanTargets(
+        clansWithMembers,
+        formats,
+        options.rosterSizes || {}
+    );
     const regularPlayers = buildScoredPlayers(clansWithMembers, regularWarStats, 5);
     const cwlPlayers = buildScoredPlayers(clansWithMembers, cwlWarStats, 3);
     const regularAssignments = getAssignmentMap(regularPlayers, clanTargets);
@@ -568,10 +597,25 @@ function buildCwlLineupHelper(
         regularAssignments,
         cwlAssignments
     );
-    const consensusAssignments = assignConsensusPlayers(consensusPlayers, clanTargets);
+    const eligiblePlayers = consensusPlayers.filter(player => {
+        const hasMissedAttacks = player.missedAttacks > 0 ||
+            (player.cwlMissedAttacks || 0) > 0;
+
+        if (options.excludeMissedAttacks && hasMissedAttacks) {
+            player.automaticExclusionReason =
+                "Automatically excluded by the no-missed-attacks preset";
+            player.assignmentReason = player.automaticExclusionReason;
+            return false;
+        }
+
+        return true;
+    });
+    const consensusAssignments = assignConsensusPlayers(eligiblePlayers, clanTargets);
+    consensusAssignments.players = consensusPlayers;
     const assignmentsWithOverflow = addOverflowClan(
         consensusAssignments,
-        overflowClan
+        overflowClan,
+        options.rosterSizes?.[overflowClan?.key]
     );
     const assignments = applyLineupOverrides(assignmentsWithOverflow, overrides);
 

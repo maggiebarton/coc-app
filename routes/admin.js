@@ -12,7 +12,11 @@ const {
 } = require("../middleware/adminAuth");
 const { getAllClansWithMembers } = require("../services/clanService");
 const { getPreviousWars, getCwl } = require("../services/clashKingApi");
-const { getCurrentWar, verifyPlayerToken } = require("../services/clashApi");
+const {
+  getCurrentCwl,
+  getCurrentWar,
+  verifyPlayerToken,
+} = require("../services/clashApi");
 const {
   buildMissedAttacksReport,
   buildWarParticipationReport,
@@ -21,7 +25,12 @@ const {
   getRollingRegularWars,
   summarizeWarPlayerStats,
 } = require("../services/warService");
-const { getRecentCwlSeasonCandidates } = require("../services/cwlService");
+const {
+  buildCwlDebrief,
+  formatSeasonLabel,
+  getRecentCwlSeasonCandidates,
+  isValidCwlSeason,
+} = require("../services/cwlService");
 const {
   clearCwlLineupOverrides,
   readCwlLineupOverrides,
@@ -141,6 +150,71 @@ async function getMostRecentFamilyCwlStats() {
 
 function normalizeTag(tag) {
   return String(tag || "").replace("#", "").trim().toUpperCase();
+}
+
+function countExpandedCwlWars(cwlData) {
+  return (cwlData?.rounds || []).reduce((count, round) => (
+    count + (round.warTags || round.wars || []).filter(
+      (war) => typeof war === "object" && war.clan && war.opponent
+    ).length
+  ), 0);
+}
+
+function scoreCwlDataCoverage(cwlData) {
+  return (cwlData?.rounds || []).reduce((score, round) => (
+    score + (round.warTags || round.wars || []).reduce((warScore, war) => {
+      if (typeof war !== "object" || !war.clan || !war.opponent) return warScore;
+      const members = [...(war.clan.members || []), ...(war.opponent.members || [])];
+      const attacks = members.reduce(
+        (total, member) => total + (member.attacks || []).length,
+        0
+      );
+      return warScore + 1000 + members.length + attacks;
+    }, 0)
+  ), 0);
+}
+
+function sameCwlSeason(left, right) {
+  return String(left || "").slice(0, 7) === String(right || "").slice(0, 7);
+}
+
+async function getCwlWithOfficialFallback(clanTag, season, allowOfficialFallback) {
+  let clashKingData = null;
+
+  const clashKingSeasons = [season];
+  const baseSeason = String(season || "").slice(0, 7);
+  if (/^\d{4}-\d{2}$/.test(baseSeason) && season === baseSeason) {
+    clashKingSeasons.push(`${baseSeason}-01`);
+  }
+
+  for (const clashKingSeason of clashKingSeasons) {
+    try {
+      const candidate = await getCwl(clanTag, clashKingSeason);
+      if (scoreCwlDataCoverage(candidate) > scoreCwlDataCoverage(clashKingData)) {
+        clashKingData = candidate;
+      }
+    } catch (error) {
+      // Try the next known ClashKing season format before the official fallback.
+    }
+  }
+
+  if (!allowOfficialFallback) return clashKingData;
+
+  try {
+    const officialData = await getCurrentCwl(clanTag);
+    const officialSeason = officialData?.season || season;
+
+    if (
+      sameCwlSeason(officialSeason, season) &&
+      scoreCwlDataCoverage(officialData) > scoreCwlDataCoverage(clashKingData)
+    ) {
+      return { ...officialData, season: officialSeason };
+    }
+  } catch (error) {
+    // ClashKing data can still be used when the official current-CWL endpoint is unavailable.
+  }
+
+  return clashKingData;
 }
 
 function safeAdminReturnTo(value) {
@@ -283,6 +357,30 @@ router.get("/lineup", async (req, res, next) => {
         req.query[`${clan.key}Format`] || "15",
       ])
     );
+    const rosterSizes = Object.fromEntries(
+      clans.map((clan) => {
+        const requestedSize = Number.parseInt(req.query[`${clan.key}RosterSize`], 10);
+        return [
+          clan.key,
+          Number.isInteger(requestedSize) && requestedSize >= 1 && requestedSize <= 50
+            ? requestedSize
+            : null,
+        ];
+      })
+    );
+    const requestedOverflowSize = Number.parseInt(
+      req.query[`${cwlOverflowClan.key}RosterSize`],
+      10
+    );
+    rosterSizes[cwlOverflowClan.key] =
+      Number.isInteger(requestedOverflowSize) &&
+      requestedOverflowSize >= 1 &&
+      requestedOverflowSize <= 50
+        ? requestedOverflowSize
+        : null;
+    const lineupPreset = req.query.lineupPreset === "exclude-missed-attacks"
+      ? "exclude-missed-attacks"
+      : "standard";
     const [regularWarStats, cwlWarStats, lineupOverrides] = await Promise.all([
       getRecentFamilyWarStats(60),
       getMostRecentFamilyCwlStats(),
@@ -294,13 +392,19 @@ router.get("/lineup", async (req, res, next) => {
       formats,
       cwlWarStats.combined,
       lineupOverrides,
-      cwlOverflowClan
+      cwlOverflowClan,
+      {
+        rosterSizes,
+        excludeMissedAttacks: lineupPreset === "exclude-missed-attacks",
+      }
     );
 
     res.render("admin", {
       title: "CWL Lineup Helper",
       clans,
       formats,
+      rosterSizes,
+      lineupPreset,
       lineupHelper,
       showReports: false,
       toDisplayPercent,
@@ -363,6 +467,72 @@ router.get("/participation", async (req, res, next) => {
   }
 });
 
+router.get("/cwl-debrief", async (req, res, next) => {
+  try {
+    const familyClans = [...clansConfig, cwlOverflowClan].filter((clan) => clan.tag);
+    const seasonOptions = getRecentCwlSeasonCandidates(new Date(), 12);
+    const cwlRequestCache = new Map();
+    const loadCwl = (clanTag, season, allowOfficialFallback) => {
+      const cacheKey = [normalizeTag(clanTag), season, allowOfficialFallback].join(":");
+      if (!cwlRequestCache.has(cacheKey)) {
+        cwlRequestCache.set(
+          cacheKey,
+          getCwlWithOfficialFallback(clanTag, season, allowOfficialFallback)
+        );
+      }
+      return cwlRequestCache.get(cacheKey);
+    };
+    let selectedSeason = isValidCwlSeason(req.query.season)
+      ? req.query.season
+      : null;
+
+    if (!selectedSeason) {
+      for (const [seasonIndex, season] of seasonOptions.entries()) {
+        const results = await Promise.allSettled(
+          familyClans.map((clan) => loadCwl(
+            clan.tag,
+            season,
+            seasonIndex === 0
+          ))
+        );
+        if (results.some((result) => (
+          result.status === "fulfilled" && countExpandedCwlWars(result.value) > 0
+        ))) {
+          selectedSeason = season;
+          break;
+        }
+      }
+    }
+
+    const results = selectedSeason
+      ? await Promise.allSettled(
+          familyClans.map((clan) => loadCwl(
+            clan.tag,
+            selectedSeason,
+            sameCwlSeason(selectedSeason, seasonOptions[0])
+          ))
+        )
+      : [];
+    const clanSeasons = results.flatMap((result, index) => (
+      result.status === "fulfilled" && countExpandedCwlWars(result.value) > 0
+        ? [{ clan: familyClans[index], cwlData: result.value }]
+        : []
+    ));
+
+    res.render("adminCwlDebrief", {
+      title: "CWL Debrief",
+      selectedSeason,
+      seasonOptions: [...new Set([
+        ...(selectedSeason ? [selectedSeason] : []),
+        ...seasonOptions,
+      ])].map((season) => ({ season, label: formatSeasonLabel(season) })),
+      report: buildCwlDebrief(clanSeasons, selectedSeason),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/overrides", async (req, res, next) => {
   try {
     const destination = String(req.body.destination || "automatic");
@@ -380,11 +550,32 @@ router.post("/overrides", async (req, res, next) => {
     await saveCwlLineupOverride(req.body.playerTag, destination);
 
     const formatParams = new URLSearchParams();
+    if (req.body.lineupPreset === "exclude-missed-attacks") {
+      formatParams.set("lineupPreset", "exclude-missed-attacks");
+    }
     for (const clan of clansConfig) {
       const format = req.body[`${clan.key}Format`];
       if (format === "15" || format === "30") {
         formatParams.set(`${clan.key}Format`, format);
       }
+      const rosterSize = Number.parseInt(req.body[`${clan.key}RosterSize`], 10);
+      if (Number.isInteger(rosterSize) && rosterSize >= 1 && rosterSize <= 50) {
+        formatParams.set(`${clan.key}RosterSize`, String(rosterSize));
+      }
+    }
+    const overflowRosterSize = Number.parseInt(
+      req.body[`${cwlOverflowClan.key}RosterSize`],
+      10
+    );
+    if (
+      Number.isInteger(overflowRosterSize) &&
+      overflowRosterSize >= 1 &&
+      overflowRosterSize <= 50
+    ) {
+      formatParams.set(
+        `${cwlOverflowClan.key}RosterSize`,
+        String(overflowRosterSize)
+      );
     }
 
     const query = formatParams.toString();
@@ -399,11 +590,32 @@ router.post("/overrides/reset", async (req, res, next) => {
     await clearCwlLineupOverrides();
 
     const formatParams = new URLSearchParams();
+    if (req.body.lineupPreset === "exclude-missed-attacks") {
+      formatParams.set("lineupPreset", "exclude-missed-attacks");
+    }
     for (const clan of clansConfig) {
       const format = req.body[`${clan.key}Format`];
       if (format === "15" || format === "30") {
         formatParams.set(`${clan.key}Format`, format);
       }
+      const rosterSize = Number.parseInt(req.body[`${clan.key}RosterSize`], 10);
+      if (Number.isInteger(rosterSize) && rosterSize >= 1 && rosterSize <= 50) {
+        formatParams.set(`${clan.key}RosterSize`, String(rosterSize));
+      }
+    }
+    const overflowRosterSize = Number.parseInt(
+      req.body[`${cwlOverflowClan.key}RosterSize`],
+      10
+    );
+    if (
+      Number.isInteger(overflowRosterSize) &&
+      overflowRosterSize >= 1 &&
+      overflowRosterSize <= 50
+    ) {
+      formatParams.set(
+        `${cwlOverflowClan.key}RosterSize`,
+        String(overflowRosterSize)
+      );
     }
 
     const query = formatParams.toString();

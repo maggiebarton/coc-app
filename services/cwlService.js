@@ -611,7 +611,7 @@ function mapCwlToAttackRows(cwlData, clanTag, clanKey = null) {
     const rows = [];
 
     for (const round of cwlData.rounds || []) {
-        for (const war of round.warTags || []) {
+        for (const war of round.warTags || round.wars || []) {
             if (typeof war !== "object") continue;
 
             const sides = getCwlWarSides(war, clanTag);
@@ -667,10 +667,244 @@ function mapCwlToAttackRows(cwlData, clanTag, clanKey = null) {
     return rows;
 }
 
+function roundMetric(value, digits = 1) {
+    const factor = 10 ** digits;
+    return Math.round((Number(value) || 0) * factor) / factor;
+}
+
+function summarizeCwlDebriefPlayer(player, clanNames = null) {
+    const attacks = player.attacks || [];
+    const totalStars = attacks.reduce((sum, attack) => sum + (attack.stars || 0), 0);
+    const totalDestruction = attacks.reduce(
+        (sum, attack) => sum + (attack.destructionPercentage || 0),
+        0
+    );
+    const hitUps = attacks.filter(attack => attack.townhallDifference > 0);
+    const triples = attacks.filter(attack => attack.stars === 3).length;
+
+    return {
+        playerTag: player.playerTag,
+        playerName: player.playerName,
+        townhallLevel: player.townhallLevel,
+        clanNames: clanNames || [...(player.clans || [])],
+        wars: player.wars,
+        attacksUsed: attacks.length,
+        missedAttacks: Math.max(player.wars - attacks.length, 0),
+        totalStars,
+        avgStars: attacks.length ? roundMetric(totalStars / attacks.length, 2) : 0,
+        avgDestruction: attacks.length ? roundMetric(totalDestruction / attacks.length) : 0,
+        triples,
+        tripleRate: attacks.length ? roundMetric((triples / attacks.length) * 100) : 0,
+        twoPlusRate: attacks.length
+            ? roundMetric((attacks.filter(attack => attack.stars >= 2).length / attacks.length) * 100)
+            : 0,
+        hitUpAttacks: hitUps.length,
+        hitUpStars: hitUps.reduce((sum, attack) => sum + (attack.stars || 0), 0),
+        hitUpAvgStars: hitUps.length
+            ? roundMetric(hitUps.reduce((sum, attack) => sum + (attack.stars || 0), 0) / hitUps.length, 2)
+            : 0,
+        hitUpTwoPlusRate: hitUps.length
+            ? roundMetric((hitUps.filter(attack => attack.stars >= 2).length / hitUps.length) * 100)
+            : 0
+    };
+}
+
+function sortCwlDebriefPlayers(players) {
+    return players.sort((a, b) => (
+        b.avgStars - a.avgStars ||
+        b.avgDestruction - a.avgDestruction ||
+        b.attacksUsed - a.attacksUsed ||
+        a.playerName.localeCompare(b.playerName)
+    ));
+}
+
+function getCwlDebriefCallouts(players) {
+    const rankedPlayers = players.filter(player => player.attacksUsed >= 3);
+    const playersWhoAttacked = players.filter(player => player.attacksUsed > 0);
+
+    return {
+        bestPerformers: rankedPlayers.slice(0, 3),
+        biggestStrugglers: [...playersWhoAttacked].sort((a, b) => (
+            a.avgStars - b.avgStars ||
+            a.avgDestruction - b.avgDestruction ||
+            b.attacksUsed - a.attacksUsed
+        )).slice(0, 3),
+        hitUpStandouts: players.filter(player => player.hitUpAttacks >= 2)
+            .sort((a, b) => (
+                b.hitUpAvgStars - a.hitUpAvgStars ||
+                b.hitUpTwoPlusRate - a.hitUpTwoPlusRate ||
+                b.hitUpAttacks - a.hitUpAttacks
+            )).slice(0, 3)
+    };
+}
+
+function buildCwlDebrief(clanSeasons = [], selectedSeason = null) {
+    const clanReports = [];
+    const allPlayers = new Map();
+
+    for (const entry of clanSeasons) {
+        if (!entry?.cwlData || !entry?.clan?.tag) continue;
+
+        const summary = buildClanCwlSummary(entry.cwlData, entry.clan.tag);
+        const attackRows = mapCwlToAttackRows(
+            entry.cwlData,
+            entry.clan.tag,
+            entry.clan.key
+        );
+        const wars = [];
+
+        for (const round of entry.cwlData.rounds || []) {
+            for (const war of round.warTags || round.wars || []) {
+                if (
+                    typeof war === "object" &&
+                    war.state === "warEnded" &&
+                    getCwlWarSides(war, entry.clan.tag)
+                ) {
+                    wars.push(war);
+                }
+            }
+        }
+
+        const appearances = new Map();
+        for (const war of wars) {
+            const { clanSide } = getCwlWarSides(war, entry.clan.tag);
+            for (const member of clanSide?.members || []) {
+                if (!appearances.has(member.tag)) {
+                    appearances.set(member.tag, {
+                        playerTag: member.tag,
+                        playerName: member.name,
+                        townhallLevel: member.townhallLevel,
+                        wars: 0,
+                        attacks: []
+                    });
+                }
+                const player = appearances.get(member.tag);
+                player.wars += 1;
+                player.townhallLevel = Math.max(
+                    player.townhallLevel || 0,
+                    member.townhallLevel || 0
+                );
+            }
+        }
+
+        for (const attack of attackRows) {
+            if (!appearances.has(attack.attackerTag)) {
+                appearances.set(attack.attackerTag, {
+                    playerTag: attack.attackerTag,
+                    playerName: attack.attackerName,
+                    townhallLevel: attack.attackerTownhallLevel,
+                    wars: 0,
+                    attacks: []
+                });
+            }
+            appearances.get(attack.attackerTag).attacks.push(attack);
+        }
+
+        for (const appearance of appearances.values()) {
+            if (!allPlayers.has(appearance.playerTag)) {
+                allPlayers.set(appearance.playerTag, {
+                    playerTag: appearance.playerTag,
+                    playerName: appearance.playerName,
+                    townhallLevel: appearance.townhallLevel,
+                    clans: new Set(),
+                    wars: 0,
+                    attacks: []
+                });
+            }
+            const player = allPlayers.get(appearance.playerTag);
+            player.playerName = appearance.playerName || player.playerName;
+            player.townhallLevel = Math.max(
+                player.townhallLevel || 0,
+                appearance.townhallLevel || 0
+            );
+            player.clans.add(entry.clan.name);
+            player.wars += appearance.wars;
+            player.attacks.push(...appearance.attacks);
+        }
+
+        const completedRounds = (summary?.rounds || []).filter(
+            round => round.rawState === "warEnded"
+        );
+        const overview = {
+            wins: completedRounds.filter(round => round.result === "Win").length,
+            losses: completedRounds.filter(round => round.result === "Loss").length,
+            ties: completedRounds.filter(round => round.result === "Tie").length,
+            stars: completedRounds.reduce((sum, round) => sum + round.clanStars, 0),
+            attacksUsed: completedRounds.reduce((sum, round) => sum + round.attacksUsed, 0),
+            possibleAttacks: completedRounds.reduce((sum, round) => sum + round.possibleAttacks, 0),
+            missedAttacks: completedRounds.reduce((sum, round) => sum + round.missedAttacks, 0),
+            averageDestruction: completedRounds.length
+                ? roundMetric(
+                    completedRounds.reduce((sum, round) => sum + round.clanDestruction, 0) /
+                    completedRounds.length
+                )
+                : 0,
+            completedRounds: completedRounds.length
+        };
+        const clanPlayers = sortCwlDebriefPlayers(
+            [...appearances.values()].map(player => (
+                summarizeCwlDebriefPlayer(player, [entry.clan.name])
+            ))
+        );
+        clanReports.push({
+            key: entry.clan.key,
+            name: entry.clan.name,
+            tag: entry.clan.tag,
+            leagueName: entry.cwlData.clan?.league?.name || entry.cwlData.league?.name || null,
+            place: summary?.currentClanStanding?.place || null,
+            groupSize: summary?.groupSize || 0,
+            wins: overview.wins || 0,
+            losses: overview.losses || 0,
+            ties: overview.ties || 0,
+            stars: overview.stars || 0,
+            averageDestruction: Number(overview.averageDestruction || 0),
+            attacksUsed: overview.attacksUsed || 0,
+            possibleAttacks: overview.possibleAttacks || 0,
+            missedAttacks: overview.missedAttacks || 0,
+            completedRounds: overview.completedRounds || 0,
+            players: clanPlayers,
+            callouts: getCwlDebriefCallouts(clanPlayers)
+        });
+    }
+
+    const players = sortCwlDebriefPlayers(
+        [...allPlayers.values()].map(player => summarizeCwlDebriefPlayer(player))
+    );
+    const totalAttacks = players.reduce((sum, player) => sum + player.attacksUsed, 0);
+    const totalStars = players.reduce((sum, player) => sum + player.totalStars, 0);
+    const totalDestruction = players.reduce(
+        (sum, player) => sum + (player.avgDestruction * player.attacksUsed),
+        0
+    );
+
+    return {
+        season: selectedSeason,
+        clans: clanReports.sort((a, b) => a.name.localeCompare(b.name)),
+        players,
+        callouts: getCwlDebriefCallouts(players),
+        overview: {
+            clans: clanReports.length,
+            players: players.length,
+            completedRounds: clanReports.reduce((sum, clan) => sum + clan.completedRounds, 0),
+            wins: clanReports.reduce((sum, clan) => sum + clan.wins, 0),
+            losses: clanReports.reduce((sum, clan) => sum + clan.losses, 0),
+            ties: clanReports.reduce((sum, clan) => sum + clan.ties, 0),
+            stars: totalStars,
+            attacksUsed: totalAttacks,
+            missedAttacks: players.reduce((sum, player) => sum + player.missedAttacks, 0),
+            avgStars: totalAttacks ? roundMetric(totalStars / totalAttacks, 2) : 0,
+            avgDestruction: totalAttacks ? roundMetric(totalDestruction / totalAttacks) : 0,
+            triples: players.reduce((sum, player) => sum + player.triples, 0)
+        }
+    };
+}
+
 module.exports = {
     buildClanCwlSummary,
     buildCwlHistory,
     buildCwlLeagueHistory,
+    buildCwlDebrief,
+    formatSeasonLabel,
     getRecentCwlSeasonCandidates,
     isValidCwlSeason,
     mapCwlToAttackRows
