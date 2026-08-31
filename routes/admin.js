@@ -13,6 +13,7 @@ const {
 const { getAllClansWithMembers } = require("../services/clanService");
 const { getPreviousWars, getCwl } = require("../services/clashKingApi");
 const {
+  getClanWarLog,
   getCurrentCwl,
   getCurrentWar,
   verifyPlayerToken,
@@ -40,6 +41,9 @@ const {
   buildCwlLineupHelper,
   toDisplayPercent,
 } = require("../services/cwlLineupService");
+const { buildRegularWarDebrief } = require("../services/regularWarDebriefService");
+const { buildProbationReport } = require("../services/probationService");
+const recentEndedWarCache = new Map();
 
 async function getRecentFamilyWarStats(days = 60) {
   const allWarStats = [];
@@ -88,12 +92,12 @@ async function getRecentFamilyWarStats(days = 60) {
   };
 }
 
-async function getMostRecentFamilyCwlStats() {
+async function getMostRecentFamilyCwlStats(historyClans = clansConfig) {
   const latestCwlStats = [];
   const reportCwlStats = [];
   const seasonCandidates = getRecentCwlSeasonCandidates(new Date(), 6);
 
-  for (const clanConfig of clansConfig) {
+  for (const clanConfig of historyClans) {
     let seasonsFound = 0;
 
     for (const season of seasonCandidates) {
@@ -150,6 +154,15 @@ async function getMostRecentFamilyCwlStats() {
 
 function normalizeTag(tag) {
   return String(tag || "").replace("#", "").trim().toUpperCase();
+}
+
+function parseClashWarTime(value) {
+  if (!value) return null;
+  const date = new Date(String(value).replace(
+    /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/,
+    "$1-$2-$3T$4:$5:$6"
+  ));
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function countExpandedCwlWars(cwlData) {
@@ -381,9 +394,10 @@ router.get("/lineup", async (req, res, next) => {
     const lineupPreset = req.query.lineupPreset === "exclude-missed-attacks"
       ? "exclude-missed-attacks"
       : "standard";
+    const lineupMode = req.query.lineupMode === "home" ? "home" : "family";
     const [regularWarStats, cwlWarStats, lineupOverrides] = await Promise.all([
       getRecentFamilyWarStats(60),
-      getMostRecentFamilyCwlStats(),
+      getMostRecentFamilyCwlStats([...clansConfig, cwlOverflowClan]),
       readCwlLineupOverrides(),
     ]);
     const lineupHelper = buildCwlLineupHelper(
@@ -396,6 +410,7 @@ router.get("/lineup", async (req, res, next) => {
       {
         rosterSizes,
         excludeMissedAttacks: lineupPreset === "exclude-missed-attacks",
+        lineupMode,
       }
     );
 
@@ -405,6 +420,7 @@ router.get("/lineup", async (req, res, next) => {
       formats,
       rosterSizes,
       lineupPreset,
+      lineupMode,
       lineupHelper,
       showReports: false,
       toDisplayPercent,
@@ -533,6 +549,109 @@ router.get("/cwl-debrief", async (req, res, next) => {
   }
 });
 
+router.get("/war-debrief", async (req, res, next) => {
+  try {
+    const allowedWarCounts = new Set([1, 3, 5, 10, 15, 25, 50]);
+    const requestedCount = Number.parseInt(req.query.wars, 10);
+    const warCount = allowedWarCounts.has(requestedCount) ? requestedCount : 10;
+    const results = await Promise.allSettled(clansConfig.map(async (clan) => {
+      const [previousWarResult, currentWarResult, warLogResult] = await Promise.allSettled([
+        getPreviousWars(clan.tag, 50),
+        getCurrentWar(clan.tag),
+        getClanWarLog(clan.tag, Math.min(Math.max(warCount + 5, 10), 50)),
+      ]);
+      const previousWars = previousWarResult.status === "fulfilled"
+        ? previousWarResult.value.items || []
+        : [];
+      const currentWar = currentWarResult.status === "fulfilled"
+        ? currentWarResult.value
+        : null;
+      if (currentWar?.state === "warEnded") {
+        recentEndedWarCache.set(normalizeTag(clan.tag), currentWar);
+      }
+      const cachedEndedWar = recentEndedWarCache.get(normalizeTag(clan.tag)) || null;
+      const warLog = warLogResult.status === "fulfilled"
+        ? warLogResult.value.items || []
+        : [];
+      const candidates = [
+        ...(currentWar?.state === "warEnded" ? [currentWar] : []),
+        ...(cachedEndedWar ? [cachedEndedWar] : []),
+        ...previousWars,
+      ];
+      const uniqueWars = [...new Map(candidates.map((war) => [
+        war.tag || [
+          war.preparationStartTime || war.startTime || war.endTime || "unknown",
+          ...[war.clan?.tag || "", war.opponent?.tag || ""].sort(),
+        ].join(":"),
+        war,
+      ])).values()];
+      const detailedRegularWars = getRegularWars(uniqueWars)
+        .filter((war) => war.state === "warEnded");
+      const detailedWarMatches = (summary) => detailedRegularWars.some((war) => {
+        const endDifference = Math.abs(
+          (parseClashWarTime(war.endTime)?.getTime() || 0) -
+          (parseClashWarTime(summary.endTime)?.getTime() || 0)
+        );
+        const detailedTags = new Set([normalizeTag(war.clan?.tag), normalizeTag(war.opponent?.tag)]);
+        const summaryTags = [normalizeTag(summary.clan?.tag), normalizeTag(summary.opponent?.tag)];
+        return endDifference <= 5 * 60 * 1000 && summaryTags.every((tag) => detailedTags.has(tag));
+      });
+      const warLogOnlyWars = warLog
+        .filter((war) => war.attacksPerMember === 2 && !detailedWarMatches(war))
+        .map((war) => ({ ...war, state: "warEnded", detailsUnavailable: true }));
+      const regularWars = [...detailedRegularWars, ...warLogOnlyWars]
+        .sort((a, b) => {
+          const left = String(a.endTime || "");
+          const right = String(b.endTime || "");
+          return right.localeCompare(left);
+        })
+        .slice(0, warCount);
+      return { clan, wars: regularWars };
+    }));
+    const clanWars = results.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : []
+    );
+
+    res.render("adminWarDebrief", {
+      title: "Regular War Debrief",
+      warCount,
+      warCountOptions: [...allowedWarCounts],
+      report: buildRegularWarDebrief(clanWars, warCount, req.adminClans),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/probation", async (req, res, next) => {
+  try {
+    const allowedWarCounts = new Set([3, 5, 10, 15, 25]);
+    const requestedCount = Number.parseInt(req.query.wars, 10);
+    const warCount = allowedWarCounts.has(requestedCount) ? requestedCount : 10;
+    const results = await Promise.allSettled(clansConfig.map(async (clan) => {
+      const previousWarData = await getPreviousWars(clan.tag, 50);
+      const regularWars = getRegularWars(previousWarData.items || [])
+        .filter((war) => war.state === "warEnded")
+        .sort((left, right) => String(right.endTime || "").localeCompare(String(left.endTime || "")))
+        .slice(0, warCount);
+      return { clan, wars: regularWars };
+    }));
+    const clanWars = results.flatMap((result) => (
+      result.status === "fulfilled" ? [result.value] : []
+    ));
+    const debrief = buildRegularWarDebrief(clanWars, warCount, req.adminClans);
+
+    res.render("adminProbation", {
+      title: "Probation Review",
+      warCount,
+      warCountOptions: [...allowedWarCounts],
+      report: buildProbationReport(debrief.players),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/overrides", async (req, res, next) => {
   try {
     const destination = String(req.body.destination || "automatic");
@@ -550,6 +669,9 @@ router.post("/overrides", async (req, res, next) => {
     await saveCwlLineupOverride(req.body.playerTag, destination);
 
     const formatParams = new URLSearchParams();
+    if (req.body.lineupMode === "home") {
+      formatParams.set("lineupMode", "home");
+    }
     if (req.body.lineupPreset === "exclude-missed-attacks") {
       formatParams.set("lineupPreset", "exclude-missed-attacks");
     }
@@ -590,6 +712,9 @@ router.post("/overrides/reset", async (req, res, next) => {
     await clearCwlLineupOverrides();
 
     const formatParams = new URLSearchParams();
+    if (req.body.lineupMode === "home") {
+      formatParams.set("lineupMode", "home");
+    }
     if (req.body.lineupPreset === "exclude-missed-attacks") {
       formatParams.set("lineupPreset", "exclude-missed-attacks");
     }

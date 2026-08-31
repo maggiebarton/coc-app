@@ -424,7 +424,28 @@ function assignConsensusPlayers(players, clanTargets) {
     return { players, clans: clanTargets };
 }
 
-function applyLineupOverrides(assignments, overrides = {}) {
+function assignHomePlayers(players, clans) {
+    const clanByKey = new Map(clans.filter(clan => !clan.isOverflow).map(clan => [clan.key, clan]));
+    const overflow = clans.find(clan => clan.isOverflow);
+
+    for (const player of players) {
+        const home = clanByKey.get(player.homeClanKey);
+        const destination = home && home.members.length < home.targetSize
+            ? home
+            : overflow && overflow.members.length < overflow.targetSize ? overflow : null;
+
+        player.assignedCwlClan = destination?.name || null;
+        if (!destination) continue;
+        player.assignmentReason = destination.isOverflow
+            ? "Home roster full; assigned to the overflow CWL clan"
+            : "Ranked within current home clan";
+        destination.members.push(player);
+    }
+
+    return { players, clans };
+}
+
+function applyLineupOverrides(assignments, overrides = {}, lineupMode = "family") {
     const clans = assignments.clans.map(clan => ({ ...clan, members: [] }));
     const clanByKey = new Map(clans.map(clan => [clan.key, clan]));
     const automaticPlayers = [];
@@ -477,38 +498,43 @@ function applyLineupOverrides(assignments, overrides = {}) {
         automaticPlayers.push(updatedPlayer);
     }
 
-    let playerIndex = 0;
-    const leagueGroups = [];
+    if (lineupMode === "home") {
+        // Reserve manual placements first, then fill only each player's own clan.
+        assignHomePlayers(automaticPlayers, clans);
+    } else {
+        let playerIndex = 0;
+        const leagueGroups = [];
 
-    for (const clan of clans) {
-        const lastGroup = leagueGroups[leagueGroups.length - 1];
+        for (const clan of clans) {
+            const lastGroup = leagueGroups[leagueGroups.length - 1];
 
-        if (lastGroup && lastGroup[0].leagueRank === clan.leagueRank) {
-            lastGroup.push(clan);
-        } else {
-            leagueGroups.push([clan]);
+            if (lastGroup && lastGroup[0].leagueRank === clan.leagueRank) {
+                lastGroup.push(clan);
+            } else {
+                leagueGroups.push([clan]);
+            }
         }
-    }
 
-    for (const group of leagueGroups) {
-        let groupHasRoom = true;
+        for (const group of leagueGroups) {
+            let groupHasRoom = true;
 
-        while (playerIndex < automaticPlayers.length && groupHasRoom) {
-            groupHasRoom = false;
+            while (playerIndex < automaticPlayers.length && groupHasRoom) {
+                groupHasRoom = false;
 
-            for (const clan of group) {
-                if (playerIndex >= automaticPlayers.length) break;
-                if (clan.members.length >= clan.targetSize) continue;
+                for (const clan of group) {
+                    if (playerIndex >= automaticPlayers.length) break;
+                    if (clan.members.length >= clan.targetSize) continue;
 
-                const player = automaticPlayers[playerIndex++];
-                player.assignedCwlClan = clan.name;
+                    const player = automaticPlayers[playerIndex++];
+                    player.assignedCwlClan = clan.name;
 
-                if (player.modelAssignedCwlClan !== clan.name) {
-                    player.assignmentReason = "League-aware placement after manual overrides";
+                    if (player.modelAssignedCwlClan !== clan.name) {
+                        player.assignmentReason = "League-aware placement after manual overrides";
+                    }
+
+                    clan.members.push(player);
+                    groupHasRoom = true;
                 }
-
-                clan.members.push(player);
-                groupHasRoom = true;
             }
         }
     }
@@ -587,16 +613,21 @@ function buildCwlLineupHelper(
         formats,
         options.rosterSizes || {}
     );
-    const regularPlayers = buildScoredPlayers(clansWithMembers, regularWarStats, 5);
-    const cwlPlayers = buildScoredPlayers(clansWithMembers, cwlWarStats, 3);
-    const regularAssignments = getAssignmentMap(regularPlayers, clanTargets);
-    const cwlAssignments = getAssignmentMap(cwlPlayers, clanTargets);
-    const consensusPlayers = buildConsensusPlayers(
-        regularPlayers,
-        cwlPlayers,
-        regularAssignments,
-        cwlAssignments
-    );
+    const homeMode = options.lineupMode === "home";
+    const scoringGroups = homeMode ? clansWithMembers.map(clan => [clan]) : [clansWithMembers];
+    const consensusPlayers = scoringGroups.flatMap(group => {
+        const targets = homeMode
+            ? clanTargets.filter(clan => clan.key === group[0].key)
+            : clanTargets;
+        const regularPlayers = buildScoredPlayers(group, regularWarStats, 5);
+        const cwlPlayers = buildScoredPlayers(group, cwlWarStats, 3);
+        return buildConsensusPlayers(
+            regularPlayers,
+            cwlPlayers,
+            getAssignmentMap(regularPlayers, targets),
+            getAssignmentMap(cwlPlayers, targets)
+        ).map(player => ({ ...player, homeRank: homeMode ? player.rank : null }));
+    }).sort(comparePlayers).map((player, index) => ({ ...player, rank: index + 1 }));
     const eligiblePlayers = consensusPlayers.filter(player => {
         const hasMissedAttacks = player.missedAttacks > 0 ||
             (player.cwlMissedAttacks || 0) > 0;
@@ -610,14 +641,16 @@ function buildCwlLineupHelper(
 
         return true;
     });
-    const consensusAssignments = assignConsensusPlayers(eligiblePlayers, clanTargets);
+    const consensusAssignments = homeMode
+        ? assignHomePlayers(eligiblePlayers, clanTargets)
+        : assignConsensusPlayers(eligiblePlayers, clanTargets);
     consensusAssignments.players = consensusPlayers;
     const assignmentsWithOverflow = addOverflowClan(
         consensusAssignments,
         overflowClan,
         options.rosterSizes?.[overflowClan?.key]
     );
-    const assignments = applyLineupOverrides(assignmentsWithOverflow, overrides);
+    const assignments = applyLineupOverrides(assignmentsWithOverflow, overrides, options.lineupMode);
 
     return {
         players: assignments.players,

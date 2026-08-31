@@ -16,7 +16,7 @@
       normalizeCell(row.querySelector(".js-cwl-town-hall").textContent),
       normalizeCell(row.querySelector(".js-cwl-home-clan").textContent)
     ]);
-    const headers = ["Rank", "Player", "TH", "Home clan"];
+    const headers = [roster.querySelector("th").textContent.trim(), "Player", "TH", "Home clan"];
     const widths = headers.map((header, columnIndex) =>
       Math.max(header.length, ...rows.map((row) => row[columnIndex].length))
     );

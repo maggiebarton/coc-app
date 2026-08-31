@@ -305,6 +305,96 @@ body {
   z-index: 1;
 }
 
+.war-debrief-select {
+  min-width: 170px;
+}
+
+.admin-war-debrief-table {
+  max-height: 680px;
+}
+
+.admin-war-debrief-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.war-player-row {
+  cursor: pointer;
+}
+
+.war-player-row:focus-visible {
+  outline: 2px solid var(--fw-teal);
+  outline-offset: -2px;
+}
+
+.war-matchup {
+  display: inline-block;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+}
+
+.war-hit-up {
+  background: rgba(32, 230, 195, 0.14);
+  color: var(--fw-teal);
+}
+
+.war-hit-down {
+  color: var(--fw-muted);
+}
+
+.former-member-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 204, 102, 0.14);
+  color: #ffcc66;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.3;
+  vertical-align: middle;
+}
+
+.war-data-warning {
+  border: 1px solid rgba(255, 204, 102, 0.35);
+  background: rgba(255, 204, 102, 0.1);
+  color: #ffe09a;
+}
+
+.probation-rule,
+.probation-incident {
+  height: 100%;
+  padding: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.probation-rule-hard { border-color: rgba(255, 92, 122, 0.35); }
+.probation-rule-warning { border-color: rgba(255, 204, 102, 0.35); }
+
+.probation-status {
+  display: inline-flex;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.probation-status-probation {
+  background: rgba(255, 92, 122, 0.16);
+  color: #ff8fa3;
+}
+
+.probation-status-warning {
+  background: rgba(255, 204, 102, 0.16);
+  color: #ffcc66;
+}
+
 .cwl-clan-debrief-card {
   cursor: pointer;
 }

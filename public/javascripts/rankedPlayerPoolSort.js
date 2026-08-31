@@ -5,6 +5,13 @@
   if (!sortSelect || !tableBody) return;
 
   const rows = Array.from(tableBody.rows);
+  const homeMode = tableBody.closest("table").dataset.lineupMode === "home";
+  const homeFilter = document.getElementById("rankedPlayerHomeFilter");
+  homeFilter?.addEventListener("change", () => {
+    rows.forEach(row => {
+      row.hidden = Boolean(homeFilter.value && row.dataset.home !== homeFilter.value);
+    });
+  });
   rows.forEach((row, index) => {
     row.dataset.originalIndex = String(index);
   });
@@ -39,7 +46,8 @@
   sortSelect.addEventListener("change", () => {
     const compare = comparators[sortSelect.value] || comparators.rank;
     const sortedRows = [...rows].sort(
-      (a, b) => compare(a, b) || compareOriginalOrder(a, b),
+      (a, b) => (homeMode ? a.dataset.home.localeCompare(b.dataset.home) : 0)
+        || compare(a, b) || compareOriginalOrder(a, b),
     );
 
     sortedRows.forEach((row) => tableBody.appendChild(row));

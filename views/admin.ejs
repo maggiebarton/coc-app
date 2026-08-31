@@ -1,6 +1,7 @@
 <%- include("partials/header", { title }) %>
 <%- include("partials/navbar") %>
 <% const overflowRoster = lineupHelper.clans.find(clan => clan.isOverflow); %>
+<% const homeMode = lineupMode === "home"; %>
 
 <main class="container py-4">
   <div class="d-flex justify-content-between align-items-center gap-3 mb-4 flex-wrap">
@@ -9,6 +10,7 @@
       <h1 class="page-title mb-1">CWL Lineup Helper</h1>
       <p class="text-muted mb-0">
         CWL lineup helper comparing 60-day regular-war performance with the most recent CWL season.
+        CWL history includes Witch Slapped; it remains the overflow destination.
       </p>
     </div>
   </div>
@@ -16,6 +18,24 @@
   <div class="card clan-card mb-4">
     <div class="card-body">
       <form method="GET" action="/admin/lineup">
+        <fieldset class="mb-4">
+          <legend class="h6">Lineup mode</legend>
+          <div class="btn-group" role="group" aria-label="Lineup mode">
+            <input type="radio" class="btn-check" name="lineupMode" id="familyLineupMode" value="family" <%= !homeMode ? 'checked' : '' %> onchange="this.form.requestSubmit()">
+            <label class="btn btn-outline-light" for="familyLineupMode">Family pool</label>
+            <input type="radio" class="btn-check" name="lineupMode" id="homeLineupMode" value="home" <%= homeMode ? 'checked' : '' %> onchange="this.form.requestSubmit()">
+            <label class="btn btn-outline-light" for="homeLineupMode">Home clans</label>
+          </div>
+          <p class="text-muted small mt-2 mb-0">
+            <% if (homeMode) { %>
+              Score and rank each current clan's members independently. Fill their home roster first;
+              remaining players go to Witch Slapped by combined score. Home is the player's current clan, not their last CWL clan.
+            <% } else { %>
+              Rank the whole family together and fill clans by CWL league, highest first.
+            <% } %>
+            Manual overrides apply in both modes.
+          </p>
+        </fieldset>
         <div class="row g-3 align-items-end">
           <% clans.forEach(clan => { %>
           <div class="col-12 col-md-4">
@@ -295,6 +315,7 @@
                 <% } else { %>
                   <%= cwlClan.leagueName %> · <%= cwlClan.format %>v<%= cwlClan.format %><%= cwlClan.customTargetSize ? " · custom size" : "" %>
                 <% } %>
+                · <%= homeMode ? "Home-clan scoring · ranks within home clan" : "Family-pool scoring" %>
               </span>
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
@@ -306,7 +327,7 @@
                 id="rosterOrder-<%= cwlClan.key %>"
                 aria-label="Order <%= cwlClan.name %> roster"
               >
-                <option value="rank">Order by rank</option>
+                <option value="rank"><%= homeMode ? "Order by score" : "Order by rank" %></option>
                 <option value="townHall">Order by TH level</option>
               </select>
               <span class="cwl-pill">
@@ -329,7 +350,7 @@
             <table class="table table-dark table-hover align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Rank</th>
+                  <th><%= homeMode ? "Home rank" : "Rank" %></th>
                   <th>Player</th>
                   <th>TH</th>
                   <th>Combined</th>
@@ -346,7 +367,7 @@
                   data-bs-target="#playerScorecardModal"
                   data-name="<%= player.name %>"
                   data-tag="<%= player.tag %>"
-                  data-rank="#<%= player.rank %>"
+                  data-rank="<%= homeMode ? `${player.homeClan} #${player.homeRank}` : `#${player.rank}` %>"
                   data-rank-value="<%= player.rank %>"
                   data-th="<%= player.townHallLevel %>"
                   data-home="<%= player.homeClan %>"
@@ -374,7 +395,7 @@
                   data-decision="<%= player.assignmentReason %>"
                   data-summary="<%= player.summary %>"
                 >
-                  <td class="js-cwl-rank">#<%= player.rank %></td>
+                  <td class="js-cwl-rank">#<%= homeMode ? player.homeRank : player.rank %></td>
                   <td>
                     <div class="fw-bold js-cwl-player-name"><%= player.name %></div>
                     <div class="text-muted small js-cwl-home-clan"><%= player.homeClan %></div>
@@ -396,13 +417,25 @@
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center gap-3 mb-3 flex-wrap">
         <div>
-          <h4 class="mb-0">Ranked Player Pool</h4>
+          <h4 class="mb-0"><%= homeMode ? "Home-clan Rankings" : "Ranked Player Pool" %></h4>
           <span class="text-muted small"><%= lineupHelper.players.length %> current members</span>
+          <% if (homeMode) { %>
+          <p class="text-muted small mb-0">Combined, regular, and CWL ranks are within each player's current home clan. The scoring weights are unchanged.</p>
+          <% } %>
         </div>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <% if (homeMode) { %>
+          <label class="visually-hidden" for="rankedPlayerHomeFilter">Home clan</label>
+          <select class="form-select form-select-sm w-auto" id="rankedPlayerHomeFilter">
+            <option value="">All home clans</option>
+            <% clans.forEach(clan => { %>
+            <option value="<%= clan.name %>"><%= clan.name %></option>
+            <% }) %>
+          </select>
+          <% } %>
           <label class="text-muted small text-nowrap" for="rankedPlayerPoolSort">Sort by</label>
-          <select class="form-select form-select-sm" id="rankedPlayerPoolSort">
-            <option value="rank">Overall rank</option>
+          <select class="form-select form-select-sm w-auto" id="rankedPlayerPoolSort">
+            <option value="rank"><%= homeMode ? "Home-clan rank" : "Overall rank" %></option>
             <option value="reg-rank">Reg rank</option>
             <option value="cwl-rank">CWL rank</option>
             <option value="th">TH (high to low)</option>
@@ -412,10 +445,10 @@
       </div>
 
       <div class="table-responsive">
-        <table class="table table-dark table-hover align-middle mb-0" id="rankedPlayerPoolTable">
+        <table class="table table-dark table-hover align-middle mb-0" id="rankedPlayerPoolTable" data-lineup-mode="<%= lineupMode %>">
           <thead>
             <tr>
-              <th>Rank</th>
+              <th><%= homeMode ? "Home rank" : "Rank" %></th>
               <th>Player</th>
               <th>TH</th>
               <th>Home</th>
@@ -433,7 +466,8 @@
             </tr>
           </thead>
           <tbody>
-            <% lineupHelper.players.forEach(player => { %>
+            <% const poolPlayers = homeMode ? [...lineupHelper.players].sort((a, b) => a.homeClan.localeCompare(b.homeClan) || a.homeRank - b.homeRank) : lineupHelper.players; %>
+            <% poolPlayers.forEach(player => { %>
             <tr
               class="js-player-scorecard-row player-scorecard-row"
               tabindex="0"
@@ -443,8 +477,8 @@
               data-bs-target="#playerScorecardModal"
               data-name="<%= player.name %>"
               data-tag="<%= player.tag %>"
-              data-rank="#<%= player.rank %>"
-              data-rank-value="<%= player.rank %>"
+              data-rank="<%= homeMode ? `${player.homeClan} #${player.homeRank}` : `#${player.rank}` %>"
+              data-rank-value="<%= homeMode ? player.homeRank : player.rank %>"
               data-th="<%= player.townHallLevel %>"
               data-home="<%= player.homeClan %>"
               data-assigned="<%= player.assignedCwlClan || 'Unassigned' %>"
@@ -473,7 +507,7 @@
               data-decision="<%= player.assignmentReason %>"
               data-summary="<%= player.summary %>"
             >
-              <td>#<%= player.rank %></td>
+              <td>#<%= homeMode ? player.homeRank : player.rank %></td>
               <td>
                 <div class="fw-bold"><%= player.name %></div>
                 <div class="text-muted small"><%= player.tag %></div>
@@ -484,7 +518,7 @@
               <td>#<%= player.regularRank %></td>
               <td><%= player.cwlRank ? `#${player.cwlRank}` : "—" %></td>
               <td>
-                <span class="cwl-pill"><%= player.lineupOverride ? "Manual" : player.lineupAgreement ? "Agreement" : player.cwlRank ? "Blended" : "Regular only" %></span>
+                <span class="cwl-pill"><%= player.lineupOverride ? "Manual" : homeMode ? "Home scoring" : player.lineupAgreement ? "Agreement" : player.cwlRank ? "Blended" : "Regular only" %></span>
               </td>
               <td><%= player.numberOfAttacks %></td>
               <td><%= player.cwlAttacksUsed %></td>
@@ -522,6 +556,7 @@
         <p class="text-muted small mb-1" id="playerScorecardDecision"></p>
         <p class="text-muted small mb-0" id="playerScorecardSummary"></p>
         <form method="POST" action="/admin/overrides" class="lineup-override-form mt-4 pt-3 border-top border-secondary">
+          <input type="hidden" name="lineupMode" value="<%= lineupMode %>">
           <input type="hidden" name="playerTag" id="playerOverrideTag">
           <% clans.forEach(clan => { %>
           <input type="hidden" name="<%= clan.key %>Format" value="<%= formats[clan.key] %>">

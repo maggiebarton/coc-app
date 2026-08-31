@@ -1,0 +1,78 @@
+<%- include("partials/header", { title }) %>
+<%- include("partials/navbar") %>
+
+<main class="container py-4">
+  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-4">
+    <div>
+      <a href="/admin" class="text-decoration-none text-muted small">← Admin tools</a>
+      <h1 class="page-title mb-1">Probation Review</h1>
+      <p class="text-muted mb-0">Automated flags for current family members. Leaders make the final call.</p>
+    </div>
+    <form method="GET" action="/admin/probation">
+      <label for="wars" class="form-label small text-muted mb-1">Wars per clan</label>
+      <select id="wars" name="wars" class="form-select war-debrief-select" onchange="this.form.submit()">
+        <% warCountOptions.forEach((option) => { %><option value="<%= option %>" <%= option === warCount ? "selected" : "" %>>Last <%= option %> wars</option><% }) %>
+      </select>
+    </form>
+  </div>
+
+  <div class="card clan-card mb-4"><div class="card-body">
+    <h2 class="h5">Current rules</h2>
+    <div class="row g-3 small">
+      <div class="col-12 col-lg-4"><div class="probation-rule probation-rule-hard"><strong>Probation candidate</strong><br>Both attacks are equal TH and total 4★ or less.</div></div>
+      <div class="col-12 col-lg-4"><div class="probation-rule probation-rule-hard"><strong>Probation candidate</strong><br>Any attack down a TH level that does not triple.</div></div>
+      <div class="col-12 col-lg-4"><div class="probation-rule probation-rule-warning"><strong>Coaching warning</strong><br>Any attack up a TH level that does not triple.</div></div>
+    </div>
+    <p class="text-muted small mb-0 mt-3">A hit-up warning never downgrades or duplicates a probation status. Missing attacks are handled in the separate Missed Attacks report.</p>
+  </div></div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3"><div class="stat-box h-100"><div class="stat-value text-danger"><%= report.probationCount %></div><div class="stat-label">Probation candidates</div></div></div>
+    <div class="col-6 col-md-3"><div class="stat-box h-100"><div class="stat-value text-warning"><%= report.warningCount %></div><div class="stat-label">Coaching warnings</div></div></div>
+    <div class="col-6 col-md-3"><div class="stat-box h-100"><div class="stat-value"><%= report.reviews.length %></div><div class="stat-label">Players flagged</div></div></div>
+    <div class="col-6 col-md-3"><div class="stat-box h-100"><div class="stat-value"><%= warCount %></div><div class="stat-label">Wars checked / clan</div></div></div>
+  </div>
+
+  <% if (!report.reviews.length) { %>
+    <div class="card clan-card"><div class="card-body py-5 text-center"><h2 class="h4">No players flagged</h2><p class="text-muted mb-0">No current family members triggered these rules in the selected window.</p></div></div>
+  <% } else { %>
+    <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap mb-3">
+      <div><h2 class="h4 mb-1">Review queue</h2><p class="text-muted small mb-0">Every triggering attack stays visible as evidence.</p></div>
+      <div class="d-flex gap-2 flex-wrap">
+        <select id="probationClanFilter" class="form-select cwl-clan-filter" aria-label="Filter probation candidates by clan">
+          <option value="">All family clans</option>
+          <% report.clans.forEach((clan) => { %><option value="<%= clan.key %>"><%= clan.name %></option><% }) %>
+        </select>
+        <input id="probationSearch" class="form-control cwl-player-search" type="search" placeholder="Search player…" aria-label="Search probation queue">
+      </div>
+    </div>
+    <div id="probationQueue" class="d-grid gap-3">
+      <% report.reviews.forEach((review) => { %>
+        <section class="card clan-card probation-review" data-search="<%= `${review.playerName} ${review.playerTag} ${review.currentClanName}`.toLowerCase() %>" data-clan-key="<%= review.currentClanKey %>"><div class="card-body">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+            <div><h3 class="h5 mb-1"><%= review.playerName %></h3><div class="text-muted small">TH<%= review.townhallLevel %> · <%= review.currentClanName %> · <%= review.playerTag %></div></div>
+            <span class="probation-status probation-status-<%= review.status %>"><%= review.status === "probation" ? "Probation candidate" : "Coaching warning" %></span>
+          </div>
+          <div class="d-grid gap-2">
+            <% review.incidents.forEach((incident) => { %>
+              <div class="probation-incident"><div class="d-flex justify-content-between gap-3 flex-wrap"><strong><%= incident.title %></strong><span class="text-muted small"><%= incident.attack.warLabel %> · vs <%= incident.attack.opponentClanName %></span></div><div class="small mt-1"><%= incident.detail %></div><div class="text-muted small mt-1">Target: <%= incident.attack.defenderName || incident.attack.defenderTag %> · map #<%= incident.attack.defenderMapPosition || "?" %></div></div>
+            <% }) %>
+          </div>
+        </div></section>
+      <% }) %>
+    </div>
+  <% } %>
+</main>
+
+<script>
+  const filterProbationQueue = () => {
+    const query = document.getElementById("probationSearch")?.value.trim().toLowerCase() || "";
+    const clan = document.getElementById("probationClanFilter")?.value || "";
+    document.querySelectorAll(".probation-review").forEach((card) => {
+      card.hidden = !card.dataset.search.includes(query) || (clan && card.dataset.clanKey !== clan);
+    });
+  };
+  document.getElementById("probationSearch")?.addEventListener("input", filterProbationQueue);
+  document.getElementById("probationClanFilter")?.addEventListener("change", filterProbationQueue);
+</script>
+<%- include("partials/footer") %>
